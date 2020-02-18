@@ -1,35 +1,39 @@
 import * as vscode from 'vscode';
 import { window, commands, ExtensionContext } from 'vscode';
 
-let statusBarItem: vscode.StatusBarItem;
+let statusBarItems: vscode.StatusBarItem[] = [];
 
 export function activate(context: vscode.ExtensionContext) {
 
 	console.log('activated');
 
-	let commandID = 'extension.helloWorld';
-	let disposable = vscode.commands.registerCommand(commandID, () => {
-		window.showQuickPick(
-			[
-				"first",
-				"second",
-				"third"
-			]
-		).then((value) => {
-			let config = vscode.workspace.getConfiguration('statusbar.params');
-			console.dir(config.get);
+	let statusBarParams: any[] | undefined = vscode.workspace.getConfiguration().get('statusbar.params');
+	if (!statusBarParams) {
+		return;
+	}
+	for (let i = 0; i < statusBarParams.length; i++) {
+		let statusBarParam = statusBarParams[i];
+		let commandID = `extension.selectParam${statusBarParam.parameter}`;
+
+		let statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+		statusBarItem.command = commandID;
+		statusBarItem.text = 'Select a value...';
+		context.subscriptions.push(statusBarItem);
+
+		let disposable = vscode.commands.registerCommand(commandID, () => {
+			window.showQuickPick(
+				statusBarParam.strings
+			).then((value) => {
+				if (value) {
+					statusBarItem.text = value;
+				}
+			});
 		});
-	});
-	context.subscriptions.push(disposable);
-
-	statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-	statusBarItem.command = commandID;
-	statusBarItem.text = 'Hello World';
-	context.subscriptions.push(statusBarItem);
-	statusBarItem.show();
-
-	
+		context.subscriptions.push(disposable);
+		statusBarItems.push(statusBarItem);
+		statusBarItem.show();
+	}
 }
 
 // this method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() { }

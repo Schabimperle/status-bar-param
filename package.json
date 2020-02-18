@@ -45,8 +45,8 @@
 		},
 		"commands": [
 			{
-				"command": "extension.helloWorld",
-				"title": "Hello World"
+				"command": "extension.selectParam",
+				"title": "Select param"
 			}
 		]
 	},
