@@ -1,6 +1,6 @@
 {
-	"name": "status-bar-parameter",
-	"displayName": "status_bar_parameter",
+	"name": "status-bar-param",
+	"displayName": "Status Bar Parameter",
 	"description": "Add customizable parameters to the status bar.",
 	"version": "0.0.1",
 	"engines": {
@@ -13,43 +13,6 @@
 		"*"
 	],
 	"main": "./out/extension.js",
-	"contributes": {
-		"configuration": {
-			"type": "object",
-			"title": "Status Bar Params Configuration",
-			"properties": {
-				"statusbar.params": {
-					"type": "array",
-					"default": [],
-					"description": "Parameters",
-					"items": {
-						"type": "object",
-						"title": "Parameter",
-						"properties": {
-							"parameter": {
-								"type": "string",
-								"description": "Name of the Parameter"
-							},
-							"strings": {
-								"type": "array",
-								"description": "Selectable strings",
-								"items": {
-									"type": "string",
-									"title": "Selectable string"
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		"commands": [
-			{
-				"command": "extension.selectParam",
-				"title": "Select param"
-			}
-		]
-	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
 		"compile": "tsc -p ./",
