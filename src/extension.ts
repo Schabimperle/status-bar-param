@@ -38,7 +38,6 @@ async function onDidChangeTwiceWorkaound(tasksUri: vscode.Uri) {
 }
 
 async function onTasksJsonChanged(tasksUri: vscode.Uri) {
-	// parse tasks.json file
 	try {
 		let tasksFile = await vscode.workspace.fs.readFile(tasksUri);
 		let tasks = JSON.parse(tasksFile.toString().replace(/\s*\/\/.*\r?\n/g, ""));
@@ -46,15 +45,13 @@ async function onTasksJsonChanged(tasksUri: vscode.Uri) {
 		// remove old statusBarItems and commands
 		cleanup();
 
-		// loop through input section of tasks.json
 		tasks.inputs.forEach((input: any) => {
-
 			// ignore inputs not intended for this extension
-			if (!input.command.startsWith('statusBarParam.getSelected.')) {
+			if (!input.command.startsWith('statusBarParam.getSelected.') || input.args.length === 0) {
 				return;
 			}
 			addStatusBarParam(input.id, input.command, input.args);
-		}); // end loop inputs
+		});
 	} catch (err) {
 		console.log("Couldn't parse tasks.json", err);
 	}
@@ -63,7 +60,13 @@ async function onTasksJsonChanged(tasksUri: vscode.Uri) {
 function addStatusBarParam(id: string, commandIDGetParam: string, selectables: string[]) {
 	// create command for selection of status bar param
 	let commandIDSelectParam = `statusBarParam.select.${id}`;
-	let commandIDPickParam = vscode.commands.registerCommand(commandIDSelectParam, () => onClick(selectables, statusBarItem));
+	let commandIDPickParam = vscode.commands.registerCommand(commandIDSelectParam, async () => {
+		let value = await vscode.window.showQuickPick(selectables);
+		if (value === undefined || !statusBarItem.command) {
+			return;
+		}
+		setStatusBarItemText(value, statusBarItem);
+	});
 	context.subscriptions.push(commandIDPickParam);
 	disposables.push(commandIDPickParam);
 
@@ -71,38 +74,40 @@ function addStatusBarParam(id: string, commandIDGetParam: string, selectables: s
 	let statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	statusBarItems.set(commandIDGetParam, statusBarItem);
 	statusBarItem.command = commandIDSelectParam;
-	statusBarItem.text = `Select \${input:${id}}...`;
+	let text: any = context.workspaceState.get(statusBarItem.command);
+	if (!selectables.includes(text)) {
+		text = selectables[0];
+	}
+	setStatusBarItemText(text, statusBarItem);
 	context.subscriptions.push(statusBarItem);
 	disposables.push(statusBarItem);
 
 	// return currently selected value of status bar param (when input:<input_id> is used in tasks.json)
-	let commandGetParam = vscode.commands.registerCommand(commandIDGetParam, () => onGetParam(statusBarItem));
+	let commandGetParam = vscode.commands.registerCommand(commandIDGetParam, () => statusBarItem.text);
 	context.subscriptions.push(commandGetParam);
 	disposables.push(commandGetParam);
 
 	statusBarItem.show();
 }
 
-async function onClick(selectables: string[], statusBarItem: vscode.StatusBarItem) {
-	let value = await vscode.window.showQuickPick(selectables);
-	if (!value) {
+async function setStatusBarItemText(value: string, statusBarItem: vscode.StatusBarItem) {
+	if (!statusBarItem.command) {
 		return;
 	}
-	// set status bar item text on selected value
+	if (value === "") {
+		value = " ";
+	}
+	context.workspaceState.update(statusBarItem.command, value);
 	statusBarItem.text = value;
 }
 
-function onGetParam(statusBarItem: vscode.StatusBarItem) {
-	if (!statusBarItem) {
-		return undefined;
-	}
-	return statusBarItem.text;
-}
-
 function cleanup() {
-	disposables.forEach(disposable => {
-		disposable.dispose();
-	});
+	while (disposables.length > 0) {
+		let disposable = disposables.pop();
+		if (disposable) {
+			disposable.dispose();
+		}
+	}
 	statusBarItems.clear();
 }
 
