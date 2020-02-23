@@ -5,6 +5,7 @@ let disposables: vscode.Disposable[] = [];
 let lastRead: number = 0;
 let context: vscode.ExtensionContext;
 let tasksPath: string = `${vscode.workspace.rootPath}/.vscode/tasks.json`;
+let tasksUri: vscode.Uri = vscode.Uri.file(tasksPath);
 
 export function activate(this: any, con: vscode.ExtensionContext) {
 	context = con;
@@ -29,7 +30,7 @@ export function activate(this: any, con: vscode.ExtensionContext) {
 	context.subscriptions.push(command);
 
 	// init status bar items
-	onDidChangeTriggersTwiceWorkaound(vscode.Uri.file(tasksPath));
+	onDidChangeTriggersTwiceWorkaound();
 }
 
 async function onAddPramToTasksJson() {
@@ -111,7 +112,7 @@ async function onAddPramToTasksJson() {
 	}
 }
 
-async function onDidChangeTriggersTwiceWorkaound(tasksUri: vscode.Uri) {
+async function onDidChangeTriggersTwiceWorkaound() {
 	try {
 		let stat = await vscode.workspace.fs.stat(tasksUri);
 		// workaround for didChange event fired twice for one change
@@ -125,10 +126,10 @@ async function onDidChangeTriggersTwiceWorkaound(tasksUri: vscode.Uri) {
 		return;
 	}
 
-	onTasksJsonChanged(tasksUri);
+	onTasksJsonChanged();
 }
 
-async function onTasksJsonChanged(tasksUri: vscode.Uri) {
+async function onTasksJsonChanged() {
 	try {
 		let tasksFile = await vscode.workspace.fs.readFile(tasksUri);
 		let tasks = JSON.parse(tasksFile.toString().replace(/\s*\/\/.*\r?\n/g, ""));
