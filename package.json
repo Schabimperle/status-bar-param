@@ -4,6 +4,10 @@
 	"description": "Add selectable parameter to the status bar.",
 	"version": "1.0.0",
 	"publisher": "mschababerle",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Schabimperle/status-bar-param"
+	},
 	"engines": {
 		"vscode": "^1.42.0"
 	},
