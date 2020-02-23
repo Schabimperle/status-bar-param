@@ -1,8 +1,8 @@
 {
 	"name": "status-bar-param",
 	"displayName": "Status Bar Parameter",
-	"description": "Add customizable parameters to the status bar.",
-	"version": "0.0.1",
+	"description": "Add selectable parameter to the status bar.",
+	"version": "1.0.0",
 	"engines": {
 		"vscode": "^1.42.0"
 	},
@@ -12,7 +12,7 @@
 	"contributes": {
 		"commands": {
 			"command": "statusBarParam.add",
-			"title": "Add a parameter to the status bar"
+			"title": "StatusBarParam: Add Parameter to Status Bar"
 		}
 	},
 	"activationEvents": [

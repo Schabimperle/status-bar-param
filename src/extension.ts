@@ -16,6 +16,13 @@ export function activate(this: any, con: vscode.ExtensionContext) {
 		.onDidCreate(onDidChangeTriggersTwiceWorkaound);
 	vscode.workspace.createFileSystemWatcher(tasksPath)
 		.onDidDelete(cleanup);
+		
+	// wait for changes of .vscode folder
+	let tasksFolderPath = `${vscode.workspace.rootPath}/.vscode`;
+	vscode.workspace.createFileSystemWatcher(tasksFolderPath)
+		.onDidChange(onDidChangeTriggersTwiceWorkaound);
+	vscode.workspace.createFileSystemWatcher(tasksFolderPath)
+		.onDidDelete(cleanup);
 
 	// add command for creation of status bar items
 	let command = vscode.commands.registerCommand('statusBarParam.add', onAddPramToTasksJson);
@@ -42,13 +49,15 @@ async function onAddPramToTasksJson() {
 	let i = 1;
 	while (true) {
 		arg = await vscode.window.showInputBox({
-			prompt: `Enter ${i++}. parameter, press 'Escape' instead when finished.`
+			prompt: `Enter ${i++}. parameter, leave empty when finished.`
 		});
-		if (arg !== undefined) {
-			args.push(arg);
-		} else {
+		if (arg === '') {
+			break;
+		} else if (arg === undefined) {
+			args = [];
 			break;
 		}
+		args.push(arg);
 	}
 	if (args.length === 0) {
 		vscode.window.showWarningMessage("Canceled adding status bar parameter. Adding a status bar parameter without selectable values is not allowed!");
@@ -70,18 +79,7 @@ async function onAddPramToTasksJson() {
 		if (!tasks) {
 			tasks = {};
 		}
-		
-		// add input
-		if (!tasks.inputs) {
-			tasks.inputs = [];
-		}
-		tasks.inputs.push({
-			id,
-			type: "command",
-			command: `statusBarParam.getSelected.${id}`,
-			args
-		});
-		
+				
 		// add example task  
 		if (!tasks.version) {
 			tasks.version = "2.0.0";
@@ -92,7 +90,19 @@ async function onAddPramToTasksJson() {
 		tasks.tasks.push({
 			label: `echo value of ${id}`,
 			type: "shell",
-			command: `echo \"Current value of ${id} is \${input:${id}}\."`
+			command: `echo \"Current value of ${id} is '\${input:${id}}'\."`,
+			problemMatcher: []
+		});
+		
+		// add input
+		if (!tasks.inputs) {
+			tasks.inputs = [];
+		}
+		tasks.inputs.push({
+			id,
+			type: "command",
+			command: `statusBarParam.getSelected.${id}`,
+			args
 		});
 
 		vscode.workspace.fs.writeFile(tasksUri, Buffer.from(JSON.stringify(tasks, undefined, 4)));
@@ -111,7 +121,7 @@ async function onDidChangeTriggersTwiceWorkaound(tasksUri: vscode.Uri) {
 		}
 		lastRead = lastWrite;
 	} catch (err) {
-		console.log("Can't open tasks.json: ", err);
+		cleanup();
 		return;
 	}
 
