@@ -1,6 +1,6 @@
 # Status Bar Parameter
 
-This vscode extension adds the possibility to add selectable parameter to the status bar (the bar in the bottom of the window), which then can be used eslewhere (e.g. in the tasks.json).
+This vscode extension adds the possibility to add selectable parameter to the status bar (the bar in the bottom of the window), which then can be used in tasks.json.
 
 ![Demo](images/demo.gif)
 
