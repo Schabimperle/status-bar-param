@@ -2,7 +2,7 @@
 	"name": "status-bar-param",
 	"displayName": "Status Bar Parameter",
 	"description": "Add selectable parameter to the status bar.",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"publisher": "mschababerle",
 	"repository": {
 		"type": "git",
