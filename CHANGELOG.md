@@ -1,9 +1,7 @@
 # Change Log
 
-All notable changes to the "status-bar-parameter" extension will be documented in this file.
+All notable changes to the "status-bar-param" extension will be documented in this file.
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
-
-## [Unreleased]
+## [1.0.0]
 
 - Initial release
