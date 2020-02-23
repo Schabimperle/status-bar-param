@@ -9,6 +9,12 @@
 	"categories": [
 		"Other"
 	],
+	"contributes": {
+		"commands": {
+			"command": "statusBarParam.add",
+			"title": "Add a parameter to the status bar"
+		}
+	},
 	"activationEvents": [
 		"*"
 	],
