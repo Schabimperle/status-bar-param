@@ -18,6 +18,10 @@ This vscode extension adds the possibility to add selectable parameter to the st
 
 ## Release Notes
 
+### 1.0.1
+
+* fixed path to tasks.json
+
 ### 1.0.0
 
 * Initial release.
