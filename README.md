@@ -6,7 +6,7 @@ This vscode extension adds the possibility to add selectable parameter to the st
 
 ## Features
 
-* Add a parameter by using the added command: `StatusBarParam: Add Parameter to Status Bar`.
+* Add a parameter by using the command: `StatusBarParam: Add Parameter to Status Bar`.
 * Select one of the given arguments by clicking on the status bar item.
 * Use the selected value in tasks.json in commands with `${input:<param_name>}`.
 
