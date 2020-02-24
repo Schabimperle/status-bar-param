@@ -18,6 +18,10 @@ This vscode extension adds selectable parameter to the status bar (in the bottom
 
 ## Release Notes
 
+### 1.0.2
+
+* Added icon.
+
 ### 1.0.1
 
 * Updated Readme.
