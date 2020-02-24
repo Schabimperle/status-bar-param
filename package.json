@@ -2,7 +2,7 @@
 	"name": "status-bar-param",
 	"displayName": "Status Bar Parameter",
 	"description": "Add selectable parameter to the status bar.",
-	"version": "1.0.1",
+	"version": "1.0.0",
 	"publisher": "mschababerle",
 	"repository": {
 		"type": "git",
@@ -44,5 +44,8 @@
 		"mocha": "^7.0.1",
 		"typescript": "^3.7.5",
 		"vscode-test": "^1.3.0"
+	},
+	"dependencies": {
+		"jsonc-parser": "^2.2.1"
 	}
 }

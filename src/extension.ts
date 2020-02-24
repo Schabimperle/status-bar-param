@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as jsonc from 'jsonc-parser';
 
 let statusBarItems: Map<string, vscode.StatusBarItem> = new Map();
 let disposables: vscode.Disposable[] = [];
@@ -76,7 +77,7 @@ async function onAddPramToTasksJson() {
 
 	// add to current tasks.json
 	try {
-		let tasks = JSON.parse(tasksFile.toString().replace(/\s*\/\/.*\r?\n/g, ""));
+		let tasks = jsonc.parse(tasksFile.toString());
 		if (!tasks) {
 			tasks = {};
 		}
@@ -132,7 +133,7 @@ async function onDidChangeTriggersTwiceWorkaound() {
 async function onTasksJsonChanged() {
 	try {
 		let tasksFile = await vscode.workspace.fs.readFile(tasksUri);
-		let tasks = JSON.parse(tasksFile.toString().replace(/\s*\/\/.*\r?\n/g, ""));
+		let tasks = jsonc.parse(tasksFile.toString());
 
 		// remove old statusBarItems and commands
 		cleanup();
