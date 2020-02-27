@@ -5,6 +5,13 @@
 	"version": "1.0.2",
 	"publisher": "mschababerle",
 	"icon": "images/icon.png",
+	"keywords": [
+		"input",
+		"status bar",
+		"parameter",
+		"variables",
+		"multi-root ready"
+	],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/Schabimperle/status-bar-param"
