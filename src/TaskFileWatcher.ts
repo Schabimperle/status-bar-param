@@ -1,40 +1,35 @@
-import { StatusBarItem, Disposable, workspace, Uri, WorkspaceFolder, commands, window, StatusBarAlignment, ExtensionContext } from 'vscode';
+import { StatusBarItem, Disposable, workspace, Uri, WorkspaceFolder, commands, window, StatusBarAlignment, ExtensionContext, RelativePattern } from 'vscode';
 import * as jsonc from 'jsonc-parser';
 
 export class TaskFileWatcher {
 	context!: ExtensionContext;
 	statusBarItems: Map<string, StatusBarItem> = new Map();
 	disposables: Disposable[] = [];
+	tasksWatcher!: Disposable;
 	lastRead: number = 0;
-	vscodeFolder!: Uri;
-	tasksFile!: Uri;
 	
 	constructor(context: ExtensionContext, workspaceFolder: WorkspaceFolder) {
 		this.context = context;
-		this.vscodeFolder = workspaceFolder.uri.with({path: `${workspaceFolder.uri.path}/.vscode`});
-		this.tasksFile = workspaceFolder.uri.with({path: `${workspaceFolder.uri.path}/.vscode/tasks.json`});
+		console.log('TaskFileWatcher created for ', workspaceFolder.name);
 		
-		// wait for changes of .vscode folder
-		let vscodeFolderWatcher = workspace.createFileSystemWatcher(this.vscodeFolder.path);
-		vscodeFolderWatcher.onDidChange(this.onDidChangeTriggersTwiceWorkaound);
-		vscodeFolderWatcher.onDidCreate(this.onDidChangeTriggersTwiceWorkaound);
-		vscodeFolderWatcher.onDidDelete(this.cleanup);
-		this.disposables.push(vscodeFolderWatcher);
-		
-		// wait for changes of tasks.json
-		let tasksWatcher = workspace.createFileSystemWatcher(this.tasksFile.path);
-		tasksWatcher.onDidChange(this.onDidChangeTriggersTwiceWorkaound);
-		tasksWatcher.onDidCreate(this.onDidChangeTriggersTwiceWorkaound);
-		tasksWatcher.onDidDelete(this.cleanup);
-		this.disposables.push(tasksWatcher);
+		// workaround for bug: https://github.com/microsoft/vscode/issues/10633
+		let tasksUri = workspaceFolder.uri.with({path: `${workspaceFolder.uri.path}/.vscode/tasks.json`});
 
+		// wait for changes of tasks.json
+		let pattern = new RelativePattern(workspaceFolder, '.vscode/tasks.json');
+		let tasksWatcher = workspace.createFileSystemWatcher(pattern);
+		tasksWatcher.onDidChange((tasksUri: Uri) => this.onDidChangeTriggersTwiceWorkaound(tasksUri));
+		tasksWatcher.onDidCreate((tasksUri: Uri) => this.onDidChangeTriggersTwiceWorkaound(tasksUri));
+		tasksWatcher.onDidDelete(() => this.cleanupStatusBarItems());
+		
 		// init status bar items
-		this.onDidChangeTriggersTwiceWorkaound();
+		this.onDidChangeTriggersTwiceWorkaound(tasksUri);
 	}
 
-	async onDidChangeTriggersTwiceWorkaound() {
+	async onDidChangeTriggersTwiceWorkaound(tasksUri: Uri) {
 		try {
-			let stat = await workspace.fs.stat(this.tasksFile);
+			console.log('onDidChangeTriggersTwiceWorkaround');
+			let stat = await workspace.fs.stat(tasksUri);
 			// workaround for didChange event fired twice for one change
 			let lastWrite = stat.mtime;
 			if (lastWrite === this.lastRead) {
@@ -42,20 +37,21 @@ export class TaskFileWatcher {
 			}
 			this.lastRead = lastWrite;
 		} catch (err) {
-			this.cleanup();
+			this.cleanupStatusBarItems();
 			return;
 		}
 
-		this.onTasksJsonChanged();
+		this.onTasksJsonChanged(tasksUri);
 	}
 
-	async onTasksJsonChanged() {
+	async onTasksJsonChanged(tasksUri: Uri) {
+		console.log('onTasksJsonChanged');
 		try {
-			let tasksFile = await workspace.fs.readFile(this.tasksFile);
+			let tasksFile = await workspace.fs.readFile(tasksUri);
 			let tasks = jsonc.parse(tasksFile.toString());
 
 			// remove old statusBarItems and commands
-			this.cleanup();
+			this.cleanupStatusBarItems();
 
 			if (!tasks || !tasks.inputs) {
 				return;
@@ -74,6 +70,7 @@ export class TaskFileWatcher {
 	}
 
 	addParamToStatusBar(id: string, commandIDGetParam: string, selectables: string[]) {
+		console.log('addParamToStatusBar');
 		// create command for selection of status bar param
 		let commandIDSelectParam = `statusBarParam.select.${id}`;
 		let commandIDPickParam = commands.registerCommand(commandIDSelectParam, async () => {
@@ -104,6 +101,7 @@ export class TaskFileWatcher {
 	}
 
 	async setStatusBarItemText(value: string, statusBarItem: StatusBarItem) {
+		console.log('setStatusBarItemText');
 		if (!statusBarItem.command) {
 			return;
 		}
@@ -114,7 +112,8 @@ export class TaskFileWatcher {
 		statusBarItem.text = value;
 	}
 
-	cleanup() {
+	cleanupStatusBarItems() {
+		console.log('cleanup');
 		while (this.disposables.length > 0) {
 			let disposable = this.disposables.pop();
 			if (disposable) {
@@ -122,6 +121,11 @@ export class TaskFileWatcher {
 			}
 		}
 		this.statusBarItems.clear();
+	}
+
+	cleanup() {
+		this.cleanupStatusBarItems();
+		this.tasksWatcher.dispose();
 	}
 
 }

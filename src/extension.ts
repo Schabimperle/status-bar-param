@@ -1,4 +1,4 @@
-import { workspace, ExtensionContext, WorkspaceFolder, window, commands, Uri } from 'vscode';
+import { workspace, ExtensionContext, WorkspaceFolder, window, commands } from 'vscode';
 import { TaskFileWatcher } from './TaskFileWatcher';
 import * as jsonc from 'jsonc-parser';
 
