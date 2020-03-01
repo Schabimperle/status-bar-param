@@ -121,7 +121,7 @@ async function onAddPramToTasksJson() {
 		tasks.inputs.push({
 			id,
 			type: 'command',
-			command: `statusBarParam.getSelected.${id}`,
+			command: `statusBarParam.get.${id}`,
 			args
 		});
 

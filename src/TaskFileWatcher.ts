@@ -59,7 +59,7 @@ export class TaskFileWatcher {
 
 			tasks.inputs.forEach((input: any) => {
 				// ignore inputs not intended for this extension
-				if (!input.command.startsWith('statusBarParam.getSelected.') || input.args.length === 0) {
+				if (!input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
 					return;
 				}
 				this.addParamToStatusBar(input.id, input.command, input.args);
