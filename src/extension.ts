@@ -38,17 +38,28 @@ function onWorkspaceFolderRemoved(workspaceFolder: WorkspaceFolder) {
 
 async function onAddPramToTasksJson() {
 	// check if there is a workspace opened where a tasks.json can be written
+	let workspaceFolder;
 	if (taskFileWatchers.size === 0) {
+		window.showWarningMessage('You need to open a folder first!');
+	} else if (taskFileWatchers.size === 1) {
+		workspaceFolder = taskFileWatchers.keys().next().value;	
+	} else {
+		workspaceFolder = await window.showWorkspaceFolderPick({
+			placeHolder: 'Select a workspace, in which tasks.json the created input should be stored.'
+		});
+	}
+	if (!workspaceFolder) {
 		return;
 	}
 
+
 	// get command id by input box
 	let id = await window.showInputBox({
-		prompt: "Enter the input name, usable in tasks with ${input:<name>}.",
-		validateInput: (value: string) => value.includes(' ') ? 'No spaces allowed here' : undefined
+		prompt: 'Enter the input name, usable in tasks with ${input:<name>}.',
+		validateInput: (value: string) => value.includes(' ') ? 'No spaces allowed here!' : undefined
 	});
 	if (!id) {
-		window.showWarningMessage("Canceled adding status bar parameter. A status bar parameter needs a name to get used by ${input:<name>}!");
+		window.showWarningMessage('Canceled adding status bar parameter. A status bar parameter needs a name to get used by ${input:<name>}!');
 		return;
 	}
 
@@ -69,14 +80,13 @@ async function onAddPramToTasksJson() {
 		args.push(arg);
 	}
 	if (args.length === 0) {
-		window.showWarningMessage("Canceled adding status bar parameter. Adding a status bar parameter without selectable values is not allowed!");
+		window.showWarningMessage('Canceled adding status bar parameter. Adding a status bar parameter without selectable values is not allowed!');
 		return;
 	}
 
 	// read current tasks.json
 	let tasksFile;
-	let workspaceUri = taskFileWatchers.keys().next().value.uri;
-	let tasksUri = workspaceUri.with({path: `${workspaceUri.path}/.vscode/tasks.json`});
+	let tasksUri = workspaceFolder.uri.with({path: `${workspaceFolder.uri.path}/.vscode/tasks.json`});
 	try {
 		tasksFile = await workspace.fs.readFile(tasksUri);
 	} catch {
@@ -99,7 +109,7 @@ async function onAddPramToTasksJson() {
 		}
 		tasks.tasks.push({
 			label: `echo value of ${id}`,
-			type: "shell",
+			type: 'shell',
 			command: `echo \"Current value of ${id} is '\${input:${id}}'\."`,
 			problemMatcher: []
 		});
@@ -110,7 +120,7 @@ async function onAddPramToTasksJson() {
 		}
 		tasks.inputs.push({
 			id,
-			type: "command",
+			type: 'command',
 			command: `statusBarParam.getSelected.${id}`,
 			args
 		});
