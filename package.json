@@ -26,7 +26,19 @@
 		"commands": {
 			"command": "statusBarParam.add",
 			"title": "StatusBarParam: Add Parameter to Status Bar"
-		}
+		},
+		"configuration": [
+			{
+				"title": "StatusBarParam",
+				"properties": {
+					"statusBarParam.showParamName": {
+						"type": "boolean",
+						"default": false,
+						"description": "Show the name of the parameter before the selected value in the status bar."
+					}
+				}
+			}
+		]
 	},
 	"activationEvents": [
 		"*"

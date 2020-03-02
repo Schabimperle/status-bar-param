@@ -2,19 +2,38 @@ import { workspace, ExtensionContext, WorkspaceFolder, window, commands, Disposa
 import { WorkspaceParamWatcher, Param } from './WorkspaceParamWatcher';
 import * as jsonc from 'jsonc-parser';
 
+interface StatusBarParam {
+	statusBarItem: StatusBarItem;
+	param: Param;
+	selectedValue: string;
+}
+
 interface WorkspaceData {
 	watcher: WorkspaceParamWatcher;
-	statusBarItems: Map<string, StatusBarItem>;
+	statusBarParams: StatusBarParam[];
 	disposables: Disposable[];
 }
 
 let workspaceFolderToData = new Map<WorkspaceFolder, WorkspaceData>();
-let context!: ExtensionContext;
+let context: ExtensionContext;
+let showParamName: boolean = false;
 
 export function activate(con: ExtensionContext) {
 	console.log('activated');
 
 	context = con;
+
+	// init showParamName value
+	showParamNameChanged();
+
+	// listen for config changes
+	let disposable = workspace.onDidChangeConfiguration(e => {
+		console.log('on did change config');
+		if (e.affectsConfiguration('statusBarParam')) {
+			showParamNameChanged();
+		}
+	});
+	context.subscriptions.push(disposable);
 
 	// add command for creation of status bar items
 	let command = commands.registerCommand('statusBarParam.add', addPramToTasksJson);
@@ -22,35 +41,24 @@ export function activate(con: ExtensionContext) {
 
 	// listen for changes of workspace folders
 	let workspaceWatcher = workspace.onDidChangeWorkspaceFolders((e) => {
-		e.added.forEach(workspaceFolder => workspaceFolderAdded(workspaceFolder));
-		e.removed.forEach(workspaceFolder => workspaceFolderRemoved(workspaceFolder));
+		e.added.forEach(workspaceFolder => addWorkspaceFolder(workspaceFolder));
+		e.removed.forEach(workspaceFolder => removeWorkspaceFolder(workspaceFolder));
 	});
 	context.subscriptions.push(workspaceWatcher);
 
 	// init workspace
-	workspace.workspaceFolders?.forEach((workspaceFolder) => workspaceFolderAdded(workspaceFolder));
+	workspace.workspaceFolders?.forEach((workspaceFolder) => addWorkspaceFolder(workspaceFolder));
 }
 
-function workspaceFolderAdded(workspaceFolder: WorkspaceFolder) {
+function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
 	console.log('workspaceFolderAdded', workspaceFolder.name);
 	let watcher = new WorkspaceParamWatcher(workspaceFolder);
-	let workspaceData = { watcher, statusBarItems: new Map(), disposables: [] };
+	let workspaceData = { watcher, statusBarParams: [], disposables: [] };
 	workspaceFolderToData.set(workspaceFolder, workspaceData);
 	watcher.onParamsChanged((params) => paramsChanged(workspaceData, params));
 
 	// init statusBarItems manually the first time
 	paramsChanged(workspaceData, watcher.params);
-}
-
-function workspaceFolderRemoved(workspaceFolder: WorkspaceFolder) {
-	console.log('workspaceFolderRemoved', workspaceFolder.name);
-	let workspaceData = workspaceFolderToData.get(workspaceFolder);
-	if (!workspaceData) {
-		console.error('Removed workspace folder was not known');
-		return;
-	}
-	clearWorkspaceData(workspaceData);
-	workspaceFolderToData.delete(workspaceFolder);
 }
 
 function paramsChanged(workspaceData: WorkspaceData, params: Param[]) {
@@ -63,45 +71,76 @@ function paramsChanged(workspaceData: WorkspaceData, params: Param[]) {
 
 function addParamToStatusBar(workspaceData: WorkspaceData, param: Param) {
 	console.log('addParamToStatusBar');
-	// create command for selection of status bar param
+
+	// create status bar item
 	let commandIDSelectParam = `statusBarParam.select.${param.name}`;
+	let statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
+	statusBarItem.command = commandIDSelectParam;
+	let selectedValue: string = context.globalState.get(statusBarItem.command) || param.values[0];
+	let statusBarParam = { statusBarItem, param, selectedValue };
+	workspaceData.statusBarParams.push(statusBarParam);
+	updateStatusBarParamText(statusBarParam);
+	workspaceData.disposables.push(statusBarItem);
+	
+	// create command for selection of status bar param
 	let commandIDPickParam = commands.registerCommand(commandIDSelectParam, async () => {
 		let value = await window.showQuickPick(param.values);
 		if (value === undefined || !statusBarItem.command) {
 			return;
 		}
-		setStatusBarItemText(value, statusBarItem);
+		statusBarParam.selectedValue = value;
+		updateStatusBarParamText(statusBarParam);
 	});
 	workspaceData.disposables.push(commandIDPickParam);
-
-	// create status bar item
-	let statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
-	workspaceData.statusBarItems.set(param.command, statusBarItem);
-	statusBarItem.command = commandIDSelectParam;
-	let text: any = context.globalState.get(statusBarItem.command);
-	if (!param.values.includes(text)) {
-		text = param.values[0];
-	}
-	setStatusBarItemText(text, statusBarItem);
-	workspaceData.disposables.push(statusBarItem);
-
-	// return currently selected value of status bar param (when input:<input_id> is used in tasks.json)
-	let commandGetParam = commands.registerCommand(param.command, () => statusBarItem.text);
+	
+	// create command to retrieve the selected value (when input:<input_id> is used in tasks.json)
+	let commandGetParam = commands.registerCommand(param.command, () => statusBarParam.selectedValue);
 	workspaceData.disposables.push(commandGetParam);
 
 	statusBarItem.show();
 }
 
-function setStatusBarItemText(value: string, statusBarItem: StatusBarItem) {
-	console.log('setStatusBarItemText');
-	if (!statusBarItem.command) {
+function updateStatusBarParamText(statusBarParam: StatusBarParam) {
+	console.log('updateStatusBarParamText');
+	if (!statusBarParam.statusBarItem.command) {
 		return;
 	}
-	if (value === "") {
-		value = " ";
+	let text = statusBarParam.selectedValue;
+	if (text === "") {
+		text = " ";
 	}
-	context.globalState.update(statusBarItem.command, value);
-	statusBarItem.text = value;
+	if (showParamName) {
+		text = `${statusBarParam.param.name}: ${text}`;
+	}
+	context.globalState.update(statusBarParam.statusBarItem.command, statusBarParam.selectedValue);
+	statusBarParam.statusBarItem.text = text;
+}
+
+function showParamNameChanged() {
+	let value = workspace.getConfiguration('statusBarParam').get<boolean>('showParamName');
+	if (value === undefined || showParamName === value) {
+		return;
+	}
+	showParamName = value;
+	for (let workspaceData of workspaceFolderToData.values()) {
+		workspaceData.statusBarParams.forEach(statusBarParam => {
+			updateStatusBarParamText(statusBarParam);
+		});
+	}
+}
+
+function removeWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
+	console.log('workspaceFolderRemoved', workspaceFolder.name);
+	let workspaceData = workspaceFolderToData.get(workspaceFolder);
+
+	if (!workspaceData) {
+		console.error('Removed workspace folder was not known');
+		return;
+	}
+
+	workspaceData.watcher.dispose();
+	clearWorkspaceData(workspaceData);
+	workspaceFolderToData.delete(workspaceFolder);
 }
 
 function clearWorkspaceData(workspaceData: WorkspaceData) {
@@ -112,7 +151,7 @@ function clearWorkspaceData(workspaceData: WorkspaceData) {
 			disposable.dispose();
 		}
 	}
-	workspaceData.statusBarItems.clear();
+	workspaceData.statusBarParams = [];
 }
 
 // this method is called when your extension is deactivated
@@ -134,7 +173,7 @@ async function addPramToTasksJson() {
 		workspaceFolder = workspaceFolderToData.keys().next().value;
 	} else {
 		workspaceFolder = await window.showWorkspaceFolderPick({
-			placeHolder: 'Select a workspace, in which tasks.json the created input should be stored.'
+			placeHolder: 'Select a workspace, where the created input should be stored in the tasks.json.'
 		});
 	}
 	if (!workspaceFolder) {

@@ -8,6 +8,10 @@ All notable changes to the "status-bar-param" extension will be documented in th
 - Added Workspace picker for adding inputs by command.
 - Shortened command prefix for getting the selected value (`statusBarParam.getSelected.<name>` -> `statusBarParam.get.<name>`)
 
+## [1.0.4]
+
+- Added setting to show the param names in the status bar.
+
 ## [1.0.3]
 
 - Added multi root
