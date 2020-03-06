@@ -2,6 +2,10 @@
 
 All notable changes to the "status-bar-param" extension will be documented in this file.
 
+## [1.0.6]
+
+- Storing selection of status bar items in workspace instead of global storage now.
+
 ## [1.0.5]
 
 - Added setting to show the param names in the status bar.

@@ -76,7 +76,7 @@ function addParamToStatusBar(workspaceData: WorkspaceData, param: Param) {
 	let commandIDSelectParam = `statusBarParam.select.${param.name}`;
 	let statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
 	statusBarItem.command = commandIDSelectParam;
-	let selectedValue: string = context.globalState.get(statusBarItem.command) || param.values[0];
+	let selectedValue: string = context.workspaceState.get(statusBarItem.command) || param.values[0];
 	let statusBarParam = { statusBarItem, param, selectedValue };
 	workspaceData.statusBarParams.push(statusBarParam);
 	updateStatusBarParamText(statusBarParam);
@@ -112,7 +112,7 @@ function updateStatusBarParamText(statusBarParam: StatusBarParam) {
 	if (showParamName) {
 		text = `${statusBarParam.param.name}: ${text}`;
 	}
-	context.globalState.update(statusBarParam.statusBarItem.command, statusBarParam.selectedValue);
+	context.workspaceState.update(statusBarParam.statusBarItem.command, statusBarParam.selectedValue);
 	statusBarParam.statusBarItem.text = text;
 }
 
