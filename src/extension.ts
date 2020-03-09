@@ -215,21 +215,21 @@ async function addPramToTasksJson() {
 	let tasksFile;
 	let tasksUri = workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/.vscode/tasks.json` });
 	try {
-		tasksFile = await workspace.fs.readFile(tasksUri);
+		tasksFile = (await workspace.fs.readFile(tasksUri)).toString();
 	} catch {
 		tasksFile = '{}';
 	}
 
 	// add to current tasks.json
 	try {
-		let tasks = jsonc.parse(tasksFile.toString());
+		let tasks = jsonc.parse(tasksFile);
 		if (!tasks) {
 			tasks = {};
 		}
 
-		// add example task  
+		// add example task
 		if (!tasks.version) {
-			tasks.version = "2.0.0";
+			tasksFile = jsonc.applyEdits(tasksFile, jsonc.modify(tasksFile, ['version'], "2.0.0", {formattingOptions: {}}));
 		}
 		if (!tasks.tasks) {
 			tasks.tasks = [];
@@ -240,6 +240,7 @@ async function addPramToTasksJson() {
 			command: `echo \"Current value of ${id} is '\${input:${id}}'\."`,
 			problemMatcher: []
 		});
+		tasksFile = jsonc.applyEdits(tasksFile, jsonc.modify(tasksFile, ['tasks'], tasks.tasks, {formattingOptions: {}}));
 
 		// add input
 		if (!tasks.inputs) {
@@ -251,8 +252,10 @@ async function addPramToTasksJson() {
 			command: `statusBarParam.get.${id}`,
 			args
 		});
+		tasksFile = jsonc.applyEdits(tasksFile, jsonc.modify(tasksFile, ['inputs'], tasks.inputs, {formattingOptions: {}}));
 
-		workspace.fs.writeFile(tasksUri, Buffer.from(JSON.stringify(tasks, undefined, 4)));
+		workspace.fs.writeFile(tasksUri, Buffer.from(tasksFile));
+		// workspace.fs.writeFile(tasksUri, Buffer.from(JSON.stringify(tasks, undefined, 4)));
 	} catch (err) {
 		console.error(err);
 	}
