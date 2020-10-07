@@ -2,9 +2,13 @@
 
 All notable changes to the "status-bar-param" extension will be documented in this file.
 
+## [1.0.7]
+
+- Fixed bug at loading inputs in tasks.json.
+
 ## [1.0.6]
 
-- Storing selection of status bar items in workspace instead of global storage now.
+- Storing selection of status bar items in workspace instead of global storage.
 
 ## [1.0.5]
 
