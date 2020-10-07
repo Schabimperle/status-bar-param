@@ -2,6 +2,14 @@
 
 All notable changes to the "status-bar-param" extension will be documented in this file.
 
+## [1.2.1]
+
+- Reapplied bugfix from 1.0.7.
+
+## [1.2.0]
+
+- Increased version accidentially. Unpublishing not possible...
+
 ## [1.0.7]
 
 - Fixed bug at loading inputs in tasks.json.
