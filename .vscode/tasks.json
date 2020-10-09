@@ -14,7 +14,52 @@
 			"group": {
 				"kind": "build",
 				"isDefault": true
-			},
+			}
+		},
+		{
+			"label": "echo value of test",
+			"type": "shell",
+			"command": "echo \"Current value of test is '${input:test}'.\"",
+			"problemMatcher": []
+		},
+		{
+			"label": "echo value of test2",
+			"type": "shell",
+			"command": "echo \"Current value of test2 is '${input:test2}'.\"",
+			"problemMatcher": []
+		}
+	],
+	"inputs": [
+		{
+			"id": "a",
+			"type": "command",
+			"command": "statusBarParam.get.a",
+			"args": [
+				"aa"
+			]
+		},
+		{
+			"id": "b",
+			"type": "command",
+			"command": "statusBarParam.get.b",
+			"args": [
+				"bb",
+				"bbb"
+			]
+		},
+		{
+			"id": "c",
+			"type": "command",
+			"command": "statusBarParam.get.c",
+			"args": [
+				"cc",
+				"ccc"
+			]
+		},
+		{
+			"id": "remote_path",
+			"type": "promptString",
+			"description": "remote_path"
 		}
 	]
 }

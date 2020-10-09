@@ -55,7 +55,7 @@ export class WorkspaceParamWatcher {
 			this.params = [];
 			tasks.inputs.forEach((input: any) => {
 				// ignore inputs not intended for this extension
-				if (!tasks.command || !input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
+				if (!input.command || !input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
 					return;
 				}
 				this.params.push({
