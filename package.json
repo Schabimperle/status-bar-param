@@ -2,7 +2,7 @@
 	"name": "status-bar-param",
 	"displayName": "Status Bar Parameter",
 	"description": "Add selectable parameter to the status bar.",
-	"version": "1.2.3",
+	"version": "1.2.4",
 	"publisher": "mschababerle",
 	"icon": "images/icon.png",
 	"keywords": [
@@ -23,20 +23,22 @@
 		"Other"
 	],
 	"contributes": {
-		"commands": {
-			"command": "statusBarParam.add",
-			"title": "StatusBarParam: Add Parameter to Status Bar"
-		},
-		"configuration": [
-			{
-				"title": "StatusBarParam",
-				"properties": {
-					"statusBarParam.showParamName": {
-						"type": "boolean",
-						"default": false,
-						"description": "Show the name of the parameter before the selected value in the status bar."
-					}
+		"configuration": {
+			"type": "object",
+			"title": "StatusBarParam",
+			"properties": {
+				"statusBarParam.showNames": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": true,
+					"description": "Show the name of the parameter before the selected value in the status bar.",
 				}
+			}
+		},
+		"commands": [
+			{
+				"command": "statusBarParam.add",
+				"title": "StatusBarParam: Add Parameter to Status Bar"
 			}
 		]
 	},
