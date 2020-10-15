@@ -117,7 +117,7 @@ function updateStatusBarParamText(statusBarParam: StatusBarParam) {
 }
 
 function showParamNameChanged() {
-	let value = workspace.getConfiguration('statusBarParam').get<boolean>('showParamName');
+	let value = workspace.getConfiguration('statusBarParam').get<boolean>('showNames');
 	if (value === undefined || showParamName === value) {
 		return;
 	}

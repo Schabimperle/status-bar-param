@@ -2,6 +2,10 @@
 
 All notable changes to the "status-bar-param" extension will be documented in this file.
 
+## [1.2.4]
+
+- Fixed "Feature Contributions" listing in extensions view of status bar param.
+
 ## [1.2.3]
 
 - Fixed bug from 1.0.7.
