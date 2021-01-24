@@ -1,75 +1,92 @@
-import { FileSystemWatcher, workspace, Uri, WorkspaceFolder, RelativePattern } from 'vscode';
+import { workspace, Uri, WorkspaceFolder, RelativePattern } from 'vscode';
 import * as jsonc from 'jsonc-parser';
+import * as fs from 'fs';
 
-export class WorkspaceParamWatcher {
-	tasksWatcher!: FileSystemWatcher;
+export class ParamWatcher {
+	onDispose!: Function;
 	lastRead: number = 0;
 	params: Param[] = [];
 	listeners: Array<(params: Param[]) => any> = [];
 
-	constructor( workspaceFolder: WorkspaceFolder) {
-		console.log('TaskFileWatcher created for', workspaceFolder.name);
+	static FromWorkspaceFolder(workspaceFolder: WorkspaceFolder): ParamWatcher {
+		console.log('Creating FileWatcher for', workspaceFolder.name);
 
 		// workaround for bug: https://github.com/microsoft/vscode/issues/10633
 		let tasksUri = workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/.vscode/tasks.json` });
 
 		// wait for changes of tasks.json
+		let paramWatcher = new ParamWatcher();
 		let pattern = new RelativePattern(workspaceFolder, '.vscode/tasks.json');
-		this.tasksWatcher = workspace.createFileSystemWatcher(pattern);
-		this.tasksWatcher.onDidChange((tasksUri: Uri) => this.changeTriggersTwiceWorkaound(tasksUri));
-		this.tasksWatcher.onDidCreate((tasksUri: Uri) => this.changeTriggersTwiceWorkaound(tasksUri));
-		this.tasksWatcher.onDidDelete(() => this.listeners.forEach(listener => listener([])));
+		let watcher = workspace.createFileSystemWatcher(pattern);
+		watcher.onDidChange((tasksUri: Uri) => paramWatcher.changeTriggersTwiceWorkaound(tasksUri));
+		watcher.onDidCreate((tasksUri: Uri) => paramWatcher.changeTriggersTwiceWorkaound(tasksUri));
+		watcher.onDidDelete(() => paramWatcher.listeners.forEach(listener => listener([])));
+		paramWatcher.onDispose = watcher.dispose;
 
 		// init status bar items
-		this.changeTriggersTwiceWorkaound(tasksUri);
+		paramWatcher.changeTriggersTwiceWorkaound(tasksUri);
+		return paramWatcher;
 	}
 
-	async changeTriggersTwiceWorkaound(tasksUri: Uri) {
+	static FromJsonFile(jsonFile: Uri): ParamWatcher {
+		console.log('Creating FileWatcher for', jsonFile.toString());
+
+		// wait for changes of the given file
+		let paramWatcher = new ParamWatcher();
+		let watcher = fs.watch(jsonFile.fsPath);
+		watcher.on('change', () => paramWatcher.changeTriggersTwiceWorkaound(jsonFile));
+		watcher.on('close', () => paramWatcher.listeners.forEach(listener => listener([])));
+		paramWatcher.onDispose = watcher.close;
+
+		// init status bar items
+		paramWatcher.changeTriggersTwiceWorkaound(jsonFile);
+		return paramWatcher;
+	}
+
+	async changeTriggersTwiceWorkaound(jsonFile: Uri) {
 		try {
 			console.log('onDidChangeTriggersTwiceWorkaround');
-			let stat = await workspace.fs.stat(tasksUri);
+			let stat = await workspace.fs.stat(jsonFile);
 			// workaround for didChange event fired twice for one change
 			let lastWrite = stat.mtime;
 			if (lastWrite === this.lastRead) {
 				return;
 			}
 			this.lastRead = lastWrite;
+			this.jsonFileChanged(jsonFile);
 		} catch (err) {
 			this.listeners.forEach(listener => listener([]));
 			return;
 		}
-
-		this.tasksJsonChanged(tasksUri);
 	}
 
-	async tasksJsonChanged(tasksUri: Uri) {
-		console.log('onTasksJsonChanged');
+	async jsonFileChanged(jsonFile: Uri) {
+		console.log('jsonFileChanged', jsonFile.toString());
 		try {
-			let tasksFile = await workspace.fs.readFile(tasksUri);
-			let tasks = jsonc.parse(tasksFile.toString());
-
-			if (!tasks || !tasks.inputs) {
-				return;
-			}
+			let fileContent = await workspace.fs.readFile(jsonFile);
+			let file = jsonc.parse(fileContent.toString());
 
 			this.params = [];
-			tasks.inputs.forEach((input: any) => {
-				// ignore inputs not intended for this extension
-				if (!input.command || !input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
-					return;
-				}
-				this.params.push({
-					name: input.id,
-					command: input.command,
-					values: input.args
+			if (file?.inputs || file?.tasks?.inputs) {
+				let inputs = file.inputs || file.tasks.inputs;
+				inputs.forEach((input: any) => {
+					// ignore inputs not intended for this extension
+					if (!input.command || !input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
+						return;
+					}
+					this.params.push({
+						name: input.id,
+						command: input.command,
+						values: input.args
+					});
 				});
-			});
+			}
 
 			this.listeners.forEach((listener) => {
 				listener(this.params);
 			});
 		} catch (err) {
-			console.error("Couldn't parse tasks.json:", err);
+			console.error("Couldn't parse json:", err);
 		}
 	}
 
@@ -78,7 +95,7 @@ export class WorkspaceParamWatcher {
 	}
 
 	dispose() {
-		this.tasksWatcher.dispose();
+		this.onDispose();
 	}
 
 }

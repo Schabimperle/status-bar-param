@@ -1,5 +1,5 @@
-import { workspace, ExtensionContext, WorkspaceFolder, window, commands, Disposable, StatusBarItem, StatusBarAlignment } from 'vscode';
-import { WorkspaceParamWatcher, Param } from './WorkspaceParamWatcher';
+import { workspace, ExtensionContext, window, commands, Disposable, StatusBarItem, StatusBarAlignment, Uri, WorkspaceFolder, QuickPickItem } from 'vscode';
+import { ParamWatcher, Param } from './WorkspaceParamWatcher';
 import * as jsonc from 'jsonc-parser';
 
 interface StatusBarParam {
@@ -8,13 +8,13 @@ interface StatusBarParam {
 	selectedValue: string;
 }
 
-interface WorkspaceData {
-	watcher: WorkspaceParamWatcher;
+interface JsonFileMetaData {
+	watcher: ParamWatcher;
 	statusBarParams: StatusBarParam[];
 	disposables: Disposable[];
 }
 
-let workspaceFolderToData = new Map<WorkspaceFolder, WorkspaceData>();
+let jsonFileToMetaData = new Map<Uri, JsonFileMetaData>();
 let context: ExtensionContext;
 let showParamName: boolean = false;
 
@@ -26,9 +26,9 @@ export function activate(con: ExtensionContext) {
 	// init showParamName value
 	showParamNameChanged();
 
-	// listen for config changes
+	// listen for settings changes
 	let disposable = workspace.onDidChangeConfiguration(e => {
-		console.log('on did change config');
+		console.log('onDidChangeConfiguration');
 		if (e.affectsConfiguration('statusBarParam')) {
 			showParamNameChanged();
 		}
@@ -36,41 +36,56 @@ export function activate(con: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	// add command for creation of status bar items
-	let command = commands.registerCommand('statusBarParam.add', addPramToTasksJson);
+	let command = commands.registerCommand('statusBarParam.add', addPramToJson);
 	context.subscriptions.push(command);
 
 	// listen for changes of workspace folders
 	let workspaceWatcher = workspace.onDidChangeWorkspaceFolders((e) => {
 		e.added.forEach(workspaceFolder => addWorkspaceFolder(workspaceFolder));
-		e.removed.forEach(workspaceFolder => removeWorkspaceFolder(workspaceFolder));
+		e.removed.forEach(workspaceFolder => removeJsonFile(workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/.vscode/tasks.json` })));
 	});
 	context.subscriptions.push(workspaceWatcher);
 
+	// listen for changes of the .code-workspace file
+	if (workspace.workspaceFile && workspace.workspaceFile.scheme !== 'untitled:') {
+		addJsonFile(workspace.workspaceFile);
+	}
 	// init workspace
 	workspace.workspaceFolders?.forEach((workspaceFolder) => addWorkspaceFolder(workspaceFolder));
 }
 
 function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
-	console.log('workspaceFolderAdded', workspaceFolder.name);
-	let watcher = new WorkspaceParamWatcher(workspaceFolder);
+	console.log('addWorkspaceFolder', workspaceFolder.name);
+	let watcher = ParamWatcher.FromWorkspaceFolder(workspaceFolder);
 	let workspaceData = { watcher, statusBarParams: [], disposables: [] };
-	workspaceFolderToData.set(workspaceFolder, workspaceData);
+	jsonFileToMetaData.set(workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/.vscode/tasks.json` }), workspaceData);
 	watcher.onParamsChanged((params) => paramsChanged(workspaceData, params));
 
 	// init statusBarItems manually the first time
 	paramsChanged(workspaceData, watcher.params);
 }
 
-function paramsChanged(workspaceData: WorkspaceData, params: Param[]) {
-	console.log('paramsChanged');
-	// remove old statusBarItems and commands
-	clearWorkspaceData(workspaceData);
-	// add new params
-	params.forEach(param => addParamToStatusBar(workspaceData, param));
+function addJsonFile(jsonFile: Uri) {
+	console.log('addJsonFile', jsonFile.toString());
+	let watcher = ParamWatcher.FromJsonFile(jsonFile);
+	let jsonFileMetaData = { watcher, statusBarParams: [], disposables: [] };
+	jsonFileToMetaData.set(jsonFile, jsonFileMetaData);
+	watcher.onParamsChanged((params) => paramsChanged(jsonFileMetaData, params));
+
+	// init statusBarItems manually the first time
+	paramsChanged(jsonFileMetaData, watcher.params);
 }
 
-function addParamToStatusBar(workspaceData: WorkspaceData, param: Param) {
-	console.log('addParamToStatusBar');
+function paramsChanged(jsonFileMetaData: JsonFileMetaData, params: Param[]) {
+	console.log('paramsChanged');
+	// remove old statusBarItems and commands
+	clearJsonFileMetaData(jsonFileMetaData);
+	// add new params
+	params.forEach(param => addParamToStatusBar(jsonFileMetaData, param));
+}
+
+function addParamToStatusBar(jsonFileMetaData: JsonFileMetaData, param: Param) {
+	console.log('addParamToStatusBar', param.name);
 
 	// create status bar item
 	let commandIDSelectParam = `statusBarParam.select.${param.name}`;
@@ -78,26 +93,33 @@ function addParamToStatusBar(workspaceData: WorkspaceData, param: Param) {
 	statusBarItem.command = commandIDSelectParam;
 	let selectedValue: string = context.workspaceState.get(statusBarItem.command) || param.values[0];
 	let statusBarParam = { statusBarItem, param, selectedValue };
-	workspaceData.statusBarParams.push(statusBarParam);
+	jsonFileMetaData.statusBarParams.push(statusBarParam);
 	updateStatusBarParamText(statusBarParam);
-	workspaceData.disposables.push(statusBarItem);
-	
-	// create command for selection of status bar param
-	let commandIDPickParam = commands.registerCommand(commandIDSelectParam, async () => {
-		let value = await window.showQuickPick(param.values);
-		if (value === undefined || !statusBarItem.command) {
-			return;
-		}
-		statusBarParam.selectedValue = value;
-		updateStatusBarParamText(statusBarParam);
-	});
-	workspaceData.disposables.push(commandIDPickParam);
-	
-	// create command to retrieve the selected value (when input:<input_id> is used in tasks.json)
-	let commandGetParam = commands.registerCommand(param.command, () => statusBarParam.selectedValue);
-	workspaceData.disposables.push(commandGetParam);
+	jsonFileMetaData.disposables.push(statusBarItem);
 
-	statusBarItem.show();
+	// create command for selection of status bar param
+	try {
+		// create command to retrieve the selected value (when input:<input_id> is used in json)
+		let commandGetParam = commands.registerCommand(param.command, () => statusBarParam.selectedValue);
+		jsonFileMetaData.disposables.push(commandGetParam);
+
+		let commandIDPickParam = commands.registerCommand(commandIDSelectParam, async () => {
+			let value = await window.showQuickPick(param.values);
+			if (value === undefined || !statusBarItem.command) {
+				return;
+			}
+			statusBarParam.selectedValue = value;
+			updateStatusBarParamText(statusBarParam);
+		});
+		jsonFileMetaData.disposables.push(commandIDPickParam);
+
+		statusBarItem.show();
+	} catch (err) {
+		console.error(err);
+		if (err instanceof Error) {
+			window.showErrorMessage(err.message);
+		}
+	}
 }
 
 function updateStatusBarParamText(statusBarParam: StatusBarParam) {
@@ -112,7 +134,7 @@ function updateStatusBarParamText(statusBarParam: StatusBarParam) {
 	if (showParamName) {
 		text = `${statusBarParam.param.name}: ${text}`;
 	}
-	context.workspaceState.update(statusBarParam.statusBarItem.command, statusBarParam.selectedValue);
+	context.workspaceState.update(statusBarParam.statusBarItem.command.toString(), statusBarParam.selectedValue);
 	statusBarParam.statusBarItem.text = text;
 }
 
@@ -122,61 +144,71 @@ function showParamNameChanged() {
 		return;
 	}
 	showParamName = value;
-	for (let workspaceData of workspaceFolderToData.values()) {
+	for (let workspaceData of jsonFileToMetaData.values()) {
 		workspaceData.statusBarParams.forEach(statusBarParam => {
 			updateStatusBarParamText(statusBarParam);
 		});
 	}
 }
 
-function removeWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
-	console.log('workspaceFolderRemoved', workspaceFolder.name);
-	let workspaceData = workspaceFolderToData.get(workspaceFolder);
+function removeJsonFile(jsonFile: Uri) {
+	console.log('jsonFileRemoved', jsonFile.toString());
+	let jsonFileMetaData = jsonFileToMetaData.get(jsonFile);
 
-	if (!workspaceData) {
-		console.error('Removed workspace folder was not known');
+	if (!jsonFileMetaData) {
+		console.error('Removed json file was not known');
 		return;
 	}
 
-	workspaceData.watcher.dispose();
-	clearWorkspaceData(workspaceData);
-	workspaceFolderToData.delete(workspaceFolder);
+	jsonFileMetaData.watcher.dispose();
+	clearJsonFileMetaData(jsonFileMetaData);
+	jsonFileToMetaData.delete(jsonFile);
 }
 
-function clearWorkspaceData(workspaceData: WorkspaceData) {
-	console.log('clearWorkspaceData');
-	while (workspaceData.disposables.length > 0) {
-		let disposable = workspaceData.disposables.pop();
+function clearJsonFileMetaData(jsonFileMetaData: JsonFileMetaData) {
+	console.log('clearJsonFile');
+	while (jsonFileMetaData.disposables.length > 0) {
+		let disposable = jsonFileMetaData.disposables.pop();
 		if (disposable) {
 			disposable.dispose();
 		}
 	}
-	workspaceData.statusBarParams = [];
+	jsonFileMetaData.statusBarParams = [];
 }
 
 // this method is called when your extension is deactivated
 export function deactivate() {
-	workspaceFolderToData.forEach(workspaceData => {
-		workspaceData.watcher.dispose();
-		clearWorkspaceData(workspaceData);
+	jsonFileToMetaData.forEach(jsonFileMetaData => {
+		jsonFileMetaData.watcher.dispose();
+		clearJsonFileMetaData(jsonFileMetaData);
 	});
 
-	console.log('deactivated');
+	console.log('extension deactivated');
 }
 
-async function addPramToTasksJson() {
+async function addPramToJson() {
 	// check if there is a workspace where a tasks.json can be written
-	let workspaceFolder;
-	if (workspaceFolderToData.size === 0) {
+	let jsonFile: Uri | null = null;
+	if (jsonFileToMetaData.size === 0) {
 		window.showWarningMessage('You need to open a folder first!');
-	} else if (workspaceFolderToData.size === 1) {
-		workspaceFolder = workspaceFolderToData.keys().next().value;
+	} else if (jsonFileToMetaData.size === 1) {
+		jsonFile = jsonFileToMetaData.keys().next().value;
 	} else {
-		workspaceFolder = await window.showWorkspaceFolderPick({
-			placeHolder: 'Select a workspace, where the created input should be stored in the tasks.json.'
+		// jsonFile = await window.showWorkspaceFolderPick({
+		// 	placeHolder: 'Select a json, where the created input should be stored.'
+		// });
+		let items: QuickPickItem[] = [...jsonFileToMetaData.keys()].map(url => {
+			return {
+				label: url.toString(),
+				url: url
+			};
 		});
+		let res: any = await window.showQuickPick(items);
+		if (res) {
+			jsonFile = res.url;
+		}
 	}
-	if (!workspaceFolder) {
+	if (!jsonFile) {
 		return;
 	}
 
@@ -212,49 +244,61 @@ async function addPramToTasksJson() {
 	}
 
 	// read current tasks.json
-	let tasksFile;
-	let tasksUri = workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/.vscode/tasks.json` });
+	let fileContent;
 	try {
-		tasksFile = (await workspace.fs.readFile(tasksUri)).toString();
+		fileContent = (await workspace.fs.readFile(jsonFile)).toString();
 	} catch {
-		tasksFile = '{}';
+		fileContent = '{}';
 	}
 
-	// add to current tasks.json
+	// add to json
 	try {
-		let tasks = jsonc.parse(tasksFile);
-		if (!tasks) {
-			tasks = {};
+		let rootNode = jsonc.parse(fileContent);
+		if (!rootNode) {
+			rootNode = {};
+		}
+		let tasksRoot = rootNode;
+		let versionPath = ['version'];
+		let tasksPath = ['tasks'];
+		let inputsPath = ['inputs'];
+
+		if (jsonFile.path.endsWith('.code-workspace')) {
+			if (!rootNode.tasks) {
+				rootNode.tasks = {};
+			}
+			tasksRoot = rootNode.tasks;
+			versionPath.unshift('tasks');
+			tasksPath.unshift('tasks');
+			inputsPath.unshift('tasks');
 		}
 
+		if (!rootNode.version) {
+			fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, versionPath, "2.0.0", { formattingOptions: {} }));
+		}
+		if (!tasksRoot.tasks) {
+			tasksRoot.tasks = [];
+		}
 		// add example task
-		if (!tasks.version) {
-			tasksFile = jsonc.applyEdits(tasksFile, jsonc.modify(tasksFile, ['version'], "2.0.0", {formattingOptions: {}}));
-		}
-		if (!tasks.tasks) {
-			tasks.tasks = [];
-		}
-		tasks.tasks.push({
+		tasksRoot.tasks.push({
 			label: `echo value of ${id}`,
 			type: 'shell',
 			command: `echo \"Current value of ${id} is '\${input:${id}}'\."`,
 			problemMatcher: []
 		});
-		tasksFile = jsonc.applyEdits(tasksFile, jsonc.modify(tasksFile, ['tasks'], tasks.tasks, {formattingOptions: {}}));
-
+		fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, tasksPath, tasksRoot.tasks, { formattingOptions: {} }));
 		// add input
-		if (!tasks.inputs) {
-			tasks.inputs = [];
+		if (!tasksRoot.inputs) {
+			tasksRoot.inputs = [];
 		}
-		tasks.inputs.push({
+		tasksRoot.inputs.push({
 			id,
 			type: 'command',
 			command: `statusBarParam.get.${id}`,
 			args
 		});
-		tasksFile = jsonc.applyEdits(tasksFile, jsonc.modify(tasksFile, ['inputs'], tasks.inputs, {formattingOptions: {}}));
+		fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, inputsPath, tasksRoot.inputs, { formattingOptions: {} }));
 
-		workspace.fs.writeFile(tasksUri, Buffer.from(tasksFile));
+		workspace.fs.writeFile(jsonFile, Buffer.from(fileContent));
 		// workspace.fs.writeFile(tasksUri, Buffer.from(JSON.stringify(tasks, undefined, 4)));
 	} catch (err) {
 		console.error(err);

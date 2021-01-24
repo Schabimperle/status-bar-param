@@ -2,6 +2,10 @@
 
 All notable changes to the "status-bar-param" extension will be documented in this file.
 
+## [1.3.0]
+
+- Added parsing inputs from .code-workspace file.
+
 ## [1.2.4]
 
 - Fixed "Feature Contributions" listing in extensions view of status bar param.
