@@ -1,6 +1,7 @@
 import { workspace, ExtensionContext, window, commands, Disposable, StatusBarItem, StatusBarAlignment, Uri, WorkspaceFolder, QuickPickItem } from 'vscode';
 import { ParamWatcher, Param } from './WorkspaceParamWatcher';
 import * as jsonc from 'jsonc-parser';
+import * as path from 'path';
 
 interface StatusBarParam {
 	statusBarItem: StatusBarItem;
@@ -17,6 +18,7 @@ interface JsonFileMetaData {
 let jsonFileToMetaData = new Map<Uri, JsonFileMetaData>();
 let context: ExtensionContext;
 let showParamName: boolean = false;
+let workspaceInputFiles = ['.vscode/tasks.json', '.vscode/launch.json'];
 
 export function activate(con: ExtensionContext) {
 	console.log('activated');
@@ -42,7 +44,7 @@ export function activate(con: ExtensionContext) {
 	// listen for changes of workspace folders
 	let workspaceWatcher = workspace.onDidChangeWorkspaceFolders((e) => {
 		e.added.forEach(workspaceFolder => addWorkspaceFolder(workspaceFolder));
-		e.removed.forEach(workspaceFolder => removeJsonFile(workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/.vscode/tasks.json` })));
+		e.removed.forEach(workspaceFolder => removeWorkspaceFolder(workspaceFolder));
 	});
 	context.subscriptions.push(workspaceWatcher);
 
@@ -56,18 +58,20 @@ export function activate(con: ExtensionContext) {
 
 function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
 	console.log('addWorkspaceFolder', workspaceFolder.name);
-	let watcher = ParamWatcher.FromWorkspaceFolder(workspaceFolder);
-	let workspaceData = { watcher, statusBarParams: [], disposables: [] };
-	jsonFileToMetaData.set(workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/.vscode/tasks.json` }), workspaceData);
-	watcher.onParamsChanged((params) => paramsChanged(workspaceData, params));
+	workspaceInputFiles.forEach(relativePath => {
+		let watcher = ParamWatcher.FromInsideWorkspace(workspaceFolder, relativePath);
+		let workspaceData = { watcher, statusBarParams: [], disposables: [] };
+		jsonFileToMetaData.set(workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/${relativePath}` }), workspaceData);
+		watcher.onParamsChanged((params) => paramsChanged(workspaceData, params));
 
-	// init statusBarItems manually the first time
-	paramsChanged(workspaceData, watcher.params);
+		// init statusBarItems manually the first time
+		paramsChanged(workspaceData, watcher.params);
+	});
 }
 
 function addJsonFile(jsonFile: Uri) {
 	console.log('addJsonFile', jsonFile.toString());
-	let watcher = ParamWatcher.FromJsonFile(jsonFile);
+	let watcher = ParamWatcher.FromOutsideWorkspace(jsonFile);
 	let jsonFileMetaData = { watcher, statusBarParams: [], disposables: [] };
 	jsonFileToMetaData.set(jsonFile, jsonFileMetaData);
 	watcher.onParamsChanged((params) => paramsChanged(jsonFileMetaData, params));
@@ -151,18 +155,21 @@ function showParamNameChanged() {
 	}
 }
 
-function removeJsonFile(jsonFile: Uri) {
-	console.log('jsonFileRemoved', jsonFile.toString());
-	let jsonFileMetaData = jsonFileToMetaData.get(jsonFile);
+function removeWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
+	console.log('removeWorkspaceFolder', workspaceFolder.name);
+	workspaceInputFiles.forEach(relativePath => {
+		let uri = workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/${relativePath}` });
+		let jsonFileMetaData = jsonFileToMetaData.get(uri);
 
-	if (!jsonFileMetaData) {
-		console.error('Removed json file was not known');
-		return;
-	}
+		if (!jsonFileMetaData) {
+			console.error('Removed json file was not known');
+			return;
+		}
 
-	jsonFileMetaData.watcher.dispose();
-	clearJsonFileMetaData(jsonFileMetaData);
-	jsonFileToMetaData.delete(jsonFile);
+		jsonFileMetaData.watcher.dispose();
+		clearJsonFileMetaData(jsonFileMetaData);
+		jsonFileToMetaData.delete(uri);
+	});
 }
 
 function clearJsonFileMetaData(jsonFileMetaData: JsonFileMetaData) {
@@ -197,15 +204,16 @@ async function addPramToJson() {
 		// jsonFile = await window.showWorkspaceFolderPick({
 		// 	placeHolder: 'Select a json, where the created input should be stored.'
 		// });
-		let items: QuickPickItem[] = [...jsonFileToMetaData.keys()].map(url => {
+		let items: QuickPickItem[] = [...jsonFileToMetaData.keys()].map(uri => {
 			return {
-				label: url.toString(),
-				url: url
+				label: path.basename(uri.fsPath),
+				description: path.dirname(uri.fsPath),
+				uri: uri
 			};
 		});
-		let res: any = await window.showQuickPick(items);
+		let res: any = await window.showQuickPick(items,);
 		if (res) {
-			jsonFile = res.url;
+			jsonFile = res.uri;
 		}
 	}
 	if (!jsonFile) {
@@ -272,20 +280,22 @@ async function addPramToJson() {
 			inputsPath.unshift('tasks');
 		}
 
-		if (!rootNode.version) {
-			fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, versionPath, "2.0.0", { formattingOptions: {} }));
+		if (!jsonFile.path.endsWith('launch.json')) {
+			if (!rootNode.version) {
+				fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, versionPath, "2.0.0", { formattingOptions: {} }));
+			}
+			if (!tasksRoot.tasks) {
+				tasksRoot.tasks = [];
+			}
+			// add example task
+			tasksRoot.tasks.push({
+				label: `echo value of ${id}`,
+				type: 'shell',
+				command: `echo \"Current value of ${id} is '\${input:${id}}'\."`,
+				problemMatcher: []
+			});
+			fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, tasksPath, tasksRoot.tasks, { formattingOptions: {} }));
 		}
-		if (!tasksRoot.tasks) {
-			tasksRoot.tasks = [];
-		}
-		// add example task
-		tasksRoot.tasks.push({
-			label: `echo value of ${id}`,
-			type: 'shell',
-			command: `echo \"Current value of ${id} is '\${input:${id}}'\."`,
-			problemMatcher: []
-		});
-		fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, tasksPath, tasksRoot.tasks, { formattingOptions: {} }));
 		// add input
 		if (!tasksRoot.inputs) {
 			tasksRoot.inputs = [];

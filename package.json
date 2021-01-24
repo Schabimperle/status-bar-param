@@ -2,7 +2,7 @@
 	"name": "status-bar-param",
 	"displayName": "Status Bar Parameter",
 	"description": "Add selectable parameter to the status bar.",
-	"version": "1.3.0",
+	"version": "1.3.1",
 	"publisher": "mschababerle",
 	"icon": "images/icon.png",
 	"keywords": [

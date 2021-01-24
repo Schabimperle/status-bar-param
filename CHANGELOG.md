@@ -2,6 +2,10 @@
 
 All notable changes to the "status-bar-param" extension will be documented in this file.
 
+## [1.3.1]
+
+- Added parsing inputs from launch.json.
+
 ## [1.3.0]
 
 - Added parsing inputs from .code-workspace file.

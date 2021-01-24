@@ -8,27 +8,27 @@ export class ParamWatcher {
 	params: Param[] = [];
 	listeners: Array<(params: Param[]) => any> = [];
 
-	static FromWorkspaceFolder(workspaceFolder: WorkspaceFolder): ParamWatcher {
-		console.log('Creating FileWatcher for', workspaceFolder.name);
+	static FromInsideWorkspace(workspaceFolder: WorkspaceFolder, relativePath: string): ParamWatcher {
+		console.log('Creating FileWatcher for', workspaceFolder.name, relativePath);
 
 		// workaround for bug: https://github.com/microsoft/vscode/issues/10633
-		let tasksUri = workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/.vscode/tasks.json` });
+		let uri = workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/${relativePath}` });
 
 		// wait for changes of tasks.json
 		let paramWatcher = new ParamWatcher();
-		let pattern = new RelativePattern(workspaceFolder, '.vscode/tasks.json');
+		let pattern = new RelativePattern(workspaceFolder, relativePath);
 		let watcher = workspace.createFileSystemWatcher(pattern);
-		watcher.onDidChange((tasksUri: Uri) => paramWatcher.changeTriggersTwiceWorkaound(tasksUri));
-		watcher.onDidCreate((tasksUri: Uri) => paramWatcher.changeTriggersTwiceWorkaound(tasksUri));
+		watcher.onDidChange(() => paramWatcher.changeTriggersTwiceWorkaound(uri));
+		watcher.onDidCreate(() => paramWatcher.changeTriggersTwiceWorkaound(uri));
 		watcher.onDidDelete(() => paramWatcher.listeners.forEach(listener => listener([])));
 		paramWatcher.onDispose = watcher.dispose;
 
 		// init status bar items
-		paramWatcher.changeTriggersTwiceWorkaound(tasksUri);
+		paramWatcher.changeTriggersTwiceWorkaound(uri);
 		return paramWatcher;
 	}
 
-	static FromJsonFile(jsonFile: Uri): ParamWatcher {
+	static FromOutsideWorkspace(jsonFile: Uri): ParamWatcher {
 		console.log('Creating FileWatcher for', jsonFile.toString());
 
 		// wait for changes of the given file
