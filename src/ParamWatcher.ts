@@ -1,6 +1,7 @@
 import { workspace, Uri, WorkspaceFolder, RelativePattern } from 'vscode';
 import * as jsonc from 'jsonc-parser';
 import * as fs from 'fs';
+import { Param } from './Param';
 
 export class ParamWatcher {
 	onDispose!: Function;
@@ -74,20 +75,15 @@ export class ParamWatcher {
 					if (!input.command || !input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
 						return;
 					}
-					this.params.push({
-						name: input.id,
-						command: input.command,
-						values: input.args
-					});
+					this.params.push(new Param(input.id, input.command, input.args));
 				});
 			}
-
-			this.listeners.forEach((listener) => {
-				listener(this.params);
-			});
 		} catch (err) {
 			console.error("Couldn't parse json:", err);
 		}
+		this.listeners.forEach((listener) => {
+			listener(this.params);
+		});
 	}
 
 	onParamsChanged(listener: (params: Param[]) => any) {
@@ -97,11 +93,4 @@ export class ParamWatcher {
 	dispose() {
 		this.onDispose();
 	}
-
-}
-
-export interface Param {
-	name: string;
-	command: string;
-	values: string[];
 }

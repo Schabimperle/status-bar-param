@@ -1,5 +1,6 @@
 import { workspace, ExtensionContext, window, commands, Disposable, StatusBarItem, StatusBarAlignment, Uri, WorkspaceFolder, QuickPickItem } from 'vscode';
-import { ParamWatcher, Param } from './WorkspaceParamWatcher';
+import { JsonWatcher } from './JsonWatcher';
+import { Param, Command } from './Param';
 import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 
@@ -10,7 +11,7 @@ interface StatusBarParam {
 }
 
 interface JsonFileMetaData {
-	watcher: ParamWatcher;
+	watcher: JsonWatcher;
 	statusBarParams: StatusBarParam[];
 	disposables: Disposable[];
 }
@@ -59,7 +60,7 @@ export function activate(con: ExtensionContext) {
 function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
 	console.log('addWorkspaceFolder', workspaceFolder.name);
 	workspaceInputFiles.forEach(relativePath => {
-		let watcher = ParamWatcher.FromInsideWorkspace(workspaceFolder, relativePath);
+		let watcher = JsonWatcher.FromInsideWorkspace(workspaceFolder, relativePath);
 		let workspaceData = { watcher, statusBarParams: [], disposables: [] };
 		jsonFileToMetaData.set(workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/${relativePath}` }), workspaceData);
 		watcher.onParamsChanged((params) => paramsChanged(workspaceData, params));
@@ -71,7 +72,7 @@ function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
 
 function addJsonFile(jsonFile: Uri) {
 	console.log('addJsonFile', jsonFile.toString());
-	let watcher = ParamWatcher.FromOutsideWorkspace(jsonFile);
+	let watcher = JsonWatcher.FromOutsideWorkspace(jsonFile);
 	let jsonFileMetaData = { watcher, statusBarParams: [], disposables: [] };
 	jsonFileToMetaData.set(jsonFile, jsonFileMetaData);
 	watcher.onParamsChanged((params) => paramsChanged(jsonFileMetaData, params));
@@ -88,14 +89,20 @@ function paramsChanged(jsonFileMetaData: JsonFileMetaData, params: Param[]) {
 	params.forEach(param => addParamToStatusBar(jsonFileMetaData, param));
 }
 
-function addParamToStatusBar(jsonFileMetaData: JsonFileMetaData, param: Param) {
+async function addParamToStatusBar(jsonFileMetaData: JsonFileMetaData, param: Param) {
 	console.log('addParamToStatusBar', param.name);
 
 	// create status bar item
-	let commandIDSelectParam = `statusBarParam.select.${param.name}`;
 	let statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
-	statusBarItem.command = commandIDSelectParam;
-	let selectedValue: string = context.workspaceState.get(statusBarItem.command) || param.values[0];
+	statusBarItem.command = `statusBarParam.select.${param.name}`;
+	let selectedValue: string | undefined = context.workspaceState.get(statusBarItem.command);
+	if (!selectedValue) {
+		let values = await param.getValues();
+		if (!values) {
+			return;
+		}
+		selectedValue = values[0];
+	}
 	let statusBarParam = { statusBarItem, param, selectedValue };
 	jsonFileMetaData.statusBarParams.push(statusBarParam);
 	updateStatusBarParamText(statusBarParam);
@@ -107,8 +114,8 @@ function addParamToStatusBar(jsonFileMetaData: JsonFileMetaData, param: Param) {
 		let commandGetParam = commands.registerCommand(param.command, () => statusBarParam.selectedValue);
 		jsonFileMetaData.disposables.push(commandGetParam);
 
-		let commandIDPickParam = commands.registerCommand(commandIDSelectParam, async () => {
-			let value = await window.showQuickPick(param.values);
+		let commandIDPickParam = commands.registerCommand(statusBarItem.command, async () => {
+			let value = await window.showQuickPick(param.getValues());
 			if (value === undefined || !statusBarItem.command) {
 				return;
 			}
@@ -197,7 +204,7 @@ async function addPramToJson() {
 	// check if there is a workspace where a tasks.json can be written
 	let jsonFile: Uri | null = null;
 	if (jsonFileToMetaData.size === 0) {
-		window.showWarningMessage('You need to open a folder first!');
+		window.showWarningMessage('You need to open a folder or workspace first!');
 	} else if (jsonFileToMetaData.size === 1) {
 		jsonFile = jsonFileToMetaData.keys().next().value;
 	} else {
