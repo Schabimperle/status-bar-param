@@ -1,11 +1,10 @@
 import { workspace, Uri, WorkspaceFolder, RelativePattern, Disposable } from 'vscode';
 import * as jsonc from 'jsonc-parser';
 import * as fs from 'fs';
-import { Param } from './param';
-
-const PRIORITY_STEP = 0.001;
+import { ArrayParam, CommandParam, FlagParam, Param } from './param';
 
 export class JsonFile implements Disposable {
+	readonly PRIORITY_STEP = 0.001;
 	readonly uri: Uri;
 	readonly priority: number;
 	readonly workspaceFolder: WorkspaceFolder | undefined;
@@ -87,8 +86,14 @@ export class JsonFile implements Disposable {
 					if (!input.command || !input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
 						return;
 					}
-					let paramPriority = this.priority - (this.params.length * PRIORITY_STEP);
-					this.params.push(new Param(this.uri, input.id, input.command, input.args, paramPriority));
+					let paramPriority = this.priority - (this.params.length * this.PRIORITY_STEP);
+					if (input.args instanceof Array) {
+						this.params.push(new ArrayParam(input.id, input.command, paramPriority, input.args));
+					} else if (input.args.shellCmd) {
+						this.params.push(new CommandParam(input.id, input.command, paramPriority, input.args, this.uri));
+					} else if (input.args.flag) {
+						this.params.push(new FlagParam(input.id, input.command, paramPriority, input.args));
+					}
 				});
 			}
 		} catch (err) {

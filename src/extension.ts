@@ -14,7 +14,7 @@ export function getExtensionContext() {
 }
 
 export function getShowParamNames() {
-	return extensionContext;
+	return showParamNames;
 }
 
 export function activate(context: ExtensionContext) {

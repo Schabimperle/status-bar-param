@@ -1,33 +1,28 @@
-import { exec } from 'child_process';
-import { commands, Disposable, StatusBarAlignment, StatusBarItem, Uri, window } from 'vscode';
+import { commands, Disposable, StatusBarAlignment, StatusBarItem, Uri, window, workspace } from 'vscode';
 import * as ext from './extension';
+import { exec } from 'child_process';
 import * as path from 'path';
 
-export interface Options {
-    type: string;
-    shellCmd: string;
-    cwd: string;
-}
-
-export class Param {
-    jsonFile: Uri;
+/**
+ * Abstract Param base class
+ */
+export abstract class Param {
+    readonly FONT_COLOR_DISABLED = '#cccccc';
     name: string;
     commandGetValue: string;
     commandSelectValue: string;
-    args: string[] | Options;
     statusBarItem: StatusBarItem;
     disposables: Disposable[] = [];
     priority: number;
 
-    constructor(jsonFile: Uri, name: string, command: string, args: string[], priority: number) {
-        this.jsonFile = jsonFile;
+    constructor(name: string, command: string, priority: number) {
         this.name = name;
         this.commandGetValue = command;
-        this.args = args;
         this.priority = priority;
 
         // create status bar item
         this.statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, this.priority);
+        this.statusBarItem.tooltip = this.name;
         this.disposables.push(this.statusBarItem);
         this.commandSelectValue = `statusBarParam.select.${this.name}`;
         this.statusBarItem.command = this.commandSelectValue;
@@ -39,12 +34,7 @@ export class Param {
             this.disposables.push(displosable);
 
             // create command for selection of status bar param
-            displosable = commands.registerCommand(this.statusBarItem.command, async () => {
-                let value = await window.showQuickPick(this.getValues());
-                if (value !== undefined) {
-                    this.setSelectedValue(value);
-                }
-            });
+            displosable = commands.registerCommand(this.statusBarItem.command, () => this.onClick());
             this.disposables.push(displosable);
 
             this.statusBarItem.show();
@@ -54,80 +44,150 @@ export class Param {
                 window.showErrorMessage(err.message);
             }
         }
-
-    }
-
-    async getValues(): Promise<string[]> {
-        return new Promise((resolve) => {
-            if (this.args instanceof Array) {
-                resolve(this.args);
-            } else if (this.args.shellCmd) {
-                exec(this.args.shellCmd, { cwd: this.getExecPath() }, (error, stdout, stderr) => {
-                    if (error && !(this.args instanceof Array)) {
-                        window.showErrorMessage(`An error occured when executing '${this.args.shellCmd}': ${error}\n${stderr}`);
-                    }
-                    let values = (stdout ? stdout : stderr).split('\n');
-                    if (values && values.length > 0 && values[values.length - 1] === "") {
-                        values.pop();
-                    }
-                    resolve(values);
-                });
-            }
-        });
-    }
-
-    getExecPath() {
-        if (this.args instanceof Array) {
-            return;
-        }
-        if (this.args.cwd) {
-            if (!path.isAbsolute(this.args.cwd)) {
-                this.args.cwd = path.join(path.dirname(this.jsonFile.fsPath).replace(/.vscode$/, ''), this.args.cwd);;
-            }
-            return this.args.cwd;
-        } else {
-            return path.dirname(this.jsonFile.fsPath).replace(/.vscode$/, '');
-        }
-    }
-
-    async getSelectedValue() {
-        let value = ext.getExtensionContext().workspaceState.get<string>(this.name);
-        if (value) {
-            return value;
-        }
-        let values = await this.getValues();
-        if (values.length > 0) {
-            value = values[0];
-            return value;
-        }
-        return "";
-    }
-
-    async setSelectedValue(value: string) {
-        ext.getExtensionContext().workspaceState.update(this.name, value);
-        if (value === "") {
-            value = " ";
-        }
-        if (ext.getShowParamNames()) {
-            value = `${this.name}: ${value}`;
-        }
-        this.statusBarItem.text = value;
     }
 
     async update() {
         let value = await this.getSelectedValue();
         let values = await this.getValues();
-        if (values.indexOf(value) === -1) {
+        if (value === undefined || values.indexOf(value) === -1) {
             value = values[0];
         }
-        if (value) {
-            this.setSelectedValue(value);
-        } else {
+        if (value === undefined) {
             window.showWarningMessage(`Parameter '${this.name}' has no arguments!`);
         }
+        this.setSelectedValue(value);
+    }
+
+    async onClick() {
+        let value = await window.showQuickPick(this.getValues());
+        if (value !== undefined) {
+            this.setSelectedValue(value);
+        }
+    }
+
+    setSelectedValue(value: string) {
+        ext.getExtensionContext().workspaceState.update(this.commandGetValue, value);
+        this.setText(value);
+    }
+
+    setText(text: string) {
+        if (text === '') {
+            this.statusBarItem.color = this.FONT_COLOR_DISABLED;
+            text = this.name;
+        } else if (ext.getShowParamNames()) {
+            this.statusBarItem.color = '';
+            text = `${this.name}: ${text}`;
+        } else {
+            this.statusBarItem.color = '';
+        }
+        this.statusBarItem.text = text;
+    }
+
+    getSelectedValue() {
+        return ext.getExtensionContext().workspaceState.get<string>(this.commandGetValue);
     }
 
     dispose() {
         this.disposables.forEach(disposable => disposable.dispose());
+    }
+
+    abstract getValues(): Promise<string[]>;
+}
+
+/**
+ * Array Param
+ */
+export class ArrayParam extends Param {
+    values: string[];
+
+    constructor(name: string, command: string, priority: number, values: string[]) {
+        super(name, command, priority);
+        this.values = values;
+    }
+
+    async getValues(): Promise<string[]> {
+        return this.values;
+    }
+}
+
+/**
+ * Flag Param
+ */
+interface FlagOptions {
+    flag: string;
+}
+export class FlagParam extends Param {
+    options: FlagOptions;
+
+    constructor(name: string, command: string, priority: number, options: FlagOptions) {
+        super(name, command, priority);
+        this.options = options;
+        this.statusBarItem.text = this.name;
+    }
+
+    async onClick() {
+        this.setSelectedValue(!this.getSelectedValue() ? this.options.flag : '');
+    }
+
+    setText(text: string) {
+        // text = `${this.name} ${text ? '\u25cb' : '\u25c9'}`;
+        this.statusBarItem.color = text ? '' : this.FONT_COLOR_DISABLED;
+    }
+
+    async getValues(): Promise<string[]> {
+        return [this.options.flag, ''];
+    }
+}
+
+/**
+ * CommandParam
+ */
+interface CommandOptions {
+    shellCmd: string;
+    cwd: string | undefined;
+    separator: string | undefined;
+}
+export class CommandParam extends Param {
+    options: CommandOptions;
+    jsonFile: Uri;
+
+    constructor(name: string, command: string, priority: number, options: CommandOptions, jsonFile: Uri) {
+        super(name, command, priority);
+        this.options = options;
+        this.jsonFile = jsonFile;
+    }
+
+    async getValues() {
+        let execPath = path.dirname(this.jsonFile.fsPath).replace(/.vscode$/, '');
+        if (this.options.cwd) {
+            execPath = path.resolve(execPath, this.options.cwd);;
+        }
+        try {
+            await workspace.fs.stat(Uri.file(execPath));
+            let stdout = await this.execCmd(this.options.shellCmd, execPath);
+            let values = stdout.split(this.options.separator || '\n');
+            if (values && values.length > 0 && values[values.length - 1] === '') {
+                values.pop();
+            }
+            return values;
+        } catch (e) {
+            let error = `Failed to launch command of ${this.name}: Starting directory (cwd) "${execPath}" does not exist.`;
+            console.error(error);
+            window.showErrorMessage(error);
+            return [];
+        }
+    }
+
+    async execCmd(cmd: string, cwd: string): Promise<string> {
+        return new Promise((resolve) => {
+            exec(cmd, { cwd }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(error + ":", stderr);
+                    window.showErrorMessage(`Executing ${this.options.shellCmd} failed: ${stderr}`);
+                    return;
+                }
+                resolve(stdout);
+            });
+        });
     }
 }
