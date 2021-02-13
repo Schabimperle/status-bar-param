@@ -53,7 +53,7 @@ export abstract class Param {
 
     async update() {
         let value = await this.getSelectedValue();
-        let values = await this.getValues();
+        const values = await this.getValues();
         if (value === undefined || values.indexOf(value) === -1) {
             value = values[0];
         }
@@ -179,14 +179,14 @@ export class CommandParam extends Param {
         }
         try {
             await workspace.fs.stat(Uri.file(execPath));
-            let stdout = await this.execCmd(this.options.shellCmd, execPath);
-            let values = stdout.split(this.options.separator || '\n');
+            const stdout = await this.execCmd(this.options.shellCmd, execPath);
+            const values = stdout.split(this.options.separator || '\n');
             if (values && values.length > 0 && values[values.length - 1] === '') {
                 values.pop();
             }
             return values;
         } catch (e) {
-            let error = `Failed to launch command of ${this.name}: Starting directory (cwd) "${execPath}" does not exist.`;
+            const error = `Failed to launch command of ${this.name}: Starting directory (cwd) "${execPath}" does not exist.`;
             console.error(error);
             window.showErrorMessage(error);
             return [];

@@ -3,8 +3,8 @@ import { JsonFile } from './jsonFile';
 import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 
-let jsonFiles: JsonFile[] = [];
-let workspaceInputFiles = ['.vscode/tasks.json', '.vscode/launch.json'];
+const jsonFiles: JsonFile[] = [];
+const workspaceInputFiles = ['.vscode/tasks.json', '.vscode/launch.json'];
 let extensionContext: ExtensionContext;
 let showParamNames: boolean;
 let priority = 100;
@@ -26,7 +26,7 @@ export function activate(context: ExtensionContext) {
 	configurationChanged();
 
 	// listen for settings changes
-	let disposable = workspace.onDidChangeConfiguration(e => {
+	const disposable = workspace.onDidChangeConfiguration(e => {
 		console.debug('onDidChangeConfiguration');
 		if (e.affectsConfiguration('statusBarParam')) {
 			configurationChanged();
@@ -35,11 +35,11 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	// add command for creation of status bar items
-	let command = commands.registerCommand('statusBarParam.add', addPramToJson);
+	const command = commands.registerCommand('statusBarParam.add', addPramToJson);
 	context.subscriptions.push(command);
 
 	// listen for changes of workspace folders
-	let workspaceWatcher = workspace.onDidChangeWorkspaceFolders((e) => {
+	const workspaceWatcher = workspace.onDidChangeWorkspaceFolders((e) => {
 		e.added.forEach(workspaceFolder => addWorkspaceFolder(workspaceFolder));
 		e.removed.forEach(workspaceFolder => removeWorkspaceFolder(workspaceFolder));
 	});
@@ -56,20 +56,20 @@ export function activate(context: ExtensionContext) {
 function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
 	console.debug('addWorkspaceFolder', workspaceFolder.name);
 	workspaceInputFiles.forEach(relativePath => {
-		let jsonFile = JsonFile.FromInsideWorkspace(workspaceFolder, relativePath, priority--);
+		const jsonFile = JsonFile.FromInsideWorkspace(workspaceFolder, relativePath, priority--);
 		jsonFiles.push(jsonFile);
 	});
 }
 
 function addJsonFile(path: Uri) {
 	console.debug('addJsonFile', path.toString());
-	let jsonFile = JsonFile.FromOutsideWorkspace(path, priority--);
+	const jsonFile = JsonFile.FromOutsideWorkspace(path, priority--);
 	jsonFiles.push(jsonFile);
 }
 
 function configurationChanged() {
 	console.debug('configurationChanged');
-	let value = workspace.getConfiguration('statusBarParam').get<boolean>('showNames');
+	const value = workspace.getConfiguration('statusBarParam').get<boolean>('showNames');
 	if (value === undefined || showParamNames === value) {
 		return;
 	}
@@ -104,14 +104,14 @@ async function addPramToJson() {
 		// jsonFile = await window.showWorkspaceFolderPick({
 		// 	placeHolder: 'Select a json, where the created input should be stored.'
 		// });
-		let items: QuickPickItem[] = jsonFiles.map(jsonFile => {
+		const items: QuickPickItem[] = jsonFiles.map(jsonFile => {
 			return {
 				label: path.basename(jsonFile.uri.fsPath),
 				description: path.dirname(jsonFile.uri.fsPath),
 				uri: jsonFile.uri
 			};
 		});
-		let res: any = await window.showQuickPick(items,);
+		const res: any = await window.showQuickPick(items);
 		if (res) {
 			jsonFile = res.uri;
 		}
@@ -121,7 +121,7 @@ async function addPramToJson() {
 	}
 
 	// get command id by input box
-	let id = await window.showInputBox({
+	const id = await window.showInputBox({
 		prompt: 'Enter the input name, usable in tasks with ${input:<name>}.',
 		validateInput: (value: string) => value.includes(' ') ? 'No spaces allowed here!' : undefined
 	});
@@ -166,9 +166,9 @@ async function addPramToJson() {
 			rootNode = {};
 		}
 		let tasksRoot = rootNode;
-		let versionPath = ['version'];
-		let tasksPath = ['tasks'];
-		let inputsPath = ['inputs'];
+		const versionPath = ['version'];
+		const tasksPath = ['tasks'];
+		const inputsPath = ['inputs'];
 
 		if (jsonFile.path.endsWith('.code-workspace')) {
 			if (!rootNode.tasks) {
