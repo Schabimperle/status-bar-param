@@ -46,7 +46,7 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(workspaceWatcher);
 
 	// listen for changes of the .code-workspace file
-	if (workspace.workspaceFile && workspace.workspaceFile.scheme !== 'untitled:') {
+	if (workspace.workspaceFile && workspace.workspaceFile.scheme !== 'untitled') {
 		addJsonFile(workspace.workspaceFile);
 	}
 	// init workspace
