@@ -76,26 +76,29 @@ export class JsonFile implements Disposable {
 		this.clear();
 		try {
 			let fileContent = await workspace.fs.readFile(jsonFile);
-			let file = jsonc.parse(fileContent.toString());
+			let rootNode = jsonc.parseTree(fileContent.toString());
+			let tasks = jsonc.findNodeAtLocation(rootNode, ['tasks']);
+			if (tasks?.type === 'object') {
+				rootNode = tasks;
+			}
+			const inputs = jsonc.findNodeAtLocation(rootNode, ['inputs']);
 
 			this.params = [];
-			if (file?.inputs || file?.tasks?.inputs) {
-				let inputs = file.inputs || file.tasks.inputs;
-				inputs.forEach((input: any) => {
-					// ignore inputs not intended for this extension
-					if (!input.command || !input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
-						return;
-					}
-					let paramPriority = this.priority - (this.params.length * this.PRIORITY_STEP);
-					if (input.args instanceof Array) {
-						this.params.push(new ArrayParam(input.id, input.command, paramPriority, input.args));
-					} else if (input.args.shellCmd) {
-						this.params.push(new CommandParam(input.id, input.command, paramPriority, input.args, this.uri));
-					} else if (input.args.flag) {
-						this.params.push(new FlagParam(input.id, input.command, paramPriority, input.args));
-					}
-				});
-			}
+			inputs?.children?.forEach(inputNode => {
+				// ignore inputs not intended for this extension
+				let input = jsonc.getNodeValue(inputNode);
+				if (!input.command || !input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
+					return;
+				}
+				let paramPriority = this.priority - (this.params.length * this.PRIORITY_STEP);
+				if (input.args instanceof Array) {
+					this.params.push(new ArrayParam(input.id, input.command, paramPriority, inputNode.offset, this.uri, input.args));
+				} else if (input.args.shellCmd) {
+					this.params.push(new CommandParam(input.id, input.command, paramPriority, inputNode.offset, this.uri, input.args));
+				} else if (input.args.flag) {
+					this.params.push(new FlagParam(input.id, input.command, paramPriority, inputNode.offset, this.uri, input.args));
+				}
+			});
 		} catch (err) {
 			console.error("Couldn't read/parse json:", err);
 		}

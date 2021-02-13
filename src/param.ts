@@ -1,4 +1,4 @@
-import { commands, Disposable, StatusBarAlignment, StatusBarItem, Uri, window, workspace } from 'vscode';
+import { commands, Disposable, Range, StatusBarAlignment, StatusBarItem, Uri, window, workspace } from 'vscode';
 import * as ext from './extension';
 import { exec } from 'child_process';
 import * as path from 'path';
@@ -8,17 +8,22 @@ import * as path from 'path';
  */
 export abstract class Param {
     readonly FONT_COLOR_DISABLED = '#cccccc';
+    readonly EDIT_STRING = '$(settings) Edit...';
     name: string;
     commandGetValue: string;
     commandSelectValue: string;
     statusBarItem: StatusBarItem;
     disposables: Disposable[] = [];
     priority: number;
+    offset: number;
+    jsonFile: Uri;
 
-    constructor(name: string, command: string, priority: number) {
+    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri) {
         this.name = name;
         this.commandGetValue = command;
         this.priority = priority;
+        this.offset = offset;
+        this.jsonFile = jsonFile;
 
         // create status bar item
         this.statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, this.priority);
@@ -59,10 +64,22 @@ export abstract class Param {
     }
 
     async onClick() {
-        let value = await window.showQuickPick(this.getValues());
-        if (value !== undefined) {
+        const values = await this.getValues();
+        values.push(this.EDIT_STRING);
+        const value = await window.showQuickPick(values);
+        if (value === this.EDIT_STRING) {
+            this.showParamInJson();
+        }
+        else if (value !== undefined) {
             this.setSelectedValue(value);
         }
+    }
+
+    async showParamInJson() {
+        const textDocument = await workspace.openTextDocument(this.jsonFile);
+        const position = textDocument.positionAt(this.offset);
+        const selection = new Range(position, position);
+        await window.showTextDocument(textDocument, {selection});
     }
 
     setSelectedValue(value: string) {
@@ -100,8 +117,8 @@ export abstract class Param {
 export class ArrayParam extends Param {
     values: string[];
 
-    constructor(name: string, command: string, priority: number, values: string[]) {
-        super(name, command, priority);
+    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, values: string[]) {
+        super(name, command, priority, offset, jsonFile);
         this.values = values;
     }
 
@@ -119,8 +136,8 @@ interface FlagOptions {
 export class FlagParam extends Param {
     options: FlagOptions;
 
-    constructor(name: string, command: string, priority: number, options: FlagOptions) {
-        super(name, command, priority);
+    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, options: FlagOptions) {
+        super(name, command, priority, offset, jsonFile);
         this.options = options;
         this.statusBarItem.text = this.name;
     }
@@ -149,12 +166,10 @@ interface CommandOptions {
 }
 export class CommandParam extends Param {
     options: CommandOptions;
-    jsonFile: Uri;
 
-    constructor(name: string, command: string, priority: number, options: CommandOptions, jsonFile: Uri) {
-        super(name, command, priority);
+    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, options: CommandOptions) {
+        super(name, command, priority, offset, jsonFile);
         this.options = options;
-        this.jsonFile = jsonFile;
     }
 
     async getValues() {
