@@ -32,6 +32,12 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Show the name of the parameter in front of the selected value in the status bar."
+				},
+				"statusBarParam.showEdit": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": true,
+					"description": "Show an edit element in the selection list of each parameter to quickly open the section in the config file where it is specified."
 				}
 			}
 		},

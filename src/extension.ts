@@ -1,20 +1,24 @@
 import { workspace, ExtensionContext, window, commands, Uri, WorkspaceFolder, QuickPickItem } from 'vscode';
 import { JsonFile } from './jsonFile';
-import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 
 const jsonFiles: JsonFile[] = [];
 const workspaceInputFiles = ['.vscode/tasks.json', '.vscode/launch.json'];
 let extensionContext: ExtensionContext;
-let showParamNames: boolean;
+let showNames: boolean;
+let showEdit: boolean;
 let priority = 100;
 
 export function getExtensionContext() {
 	return extensionContext;
 }
 
-export function getShowParamNames() {
-	return showParamNames;
+export function getShowNames() {
+	return showNames;
+}
+
+export function getShowEdit() {
+	return showEdit;
 }
 
 export function activate(context: ExtensionContext) {
@@ -69,12 +73,15 @@ function addJsonFile(path: Uri) {
 
 function configurationChanged() {
 	console.debug('configurationChanged');
-	const value = workspace.getConfiguration('statusBarParam').get<boolean>('showNames');
-	if (value === undefined || showParamNames === value) {
-		return;
+	const currShowNames = workspace.getConfiguration('statusBarParam').get<boolean>('showNames');
+	const currShowEdit = workspace.getConfiguration('statusBarParam').get<boolean>('showEdit');
+	if (currShowNames !== undefined && showNames !== currShowNames) {
+		showNames = currShowNames;
+		jsonFiles.forEach(jsonFile => jsonFile.update());
 	}
-	showParamNames = value;
-	jsonFiles.forEach(jsonFile => jsonFile.update());
+	if (currShowEdit !== undefined && showEdit !== currShowEdit) {
+		showEdit = currShowEdit;
+	}
 }
 
 function removeWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
@@ -95,122 +102,29 @@ export function deactivate() {
 async function addPramToJson() {
 	console.debug('addPramToJson');
 	// check if there is a workspace where a tasks.json can be written
-	let jsonFile: Uri | null = null;
+	let jsonFile: JsonFile | null = null;
 	if (jsonFiles.length === 0) {
 		window.showWarningMessage('You need to open a folder or workspace first!');
 	} else if (jsonFiles.length === 1) {
-		jsonFile = jsonFiles[0].uri;
+		jsonFile = jsonFiles[0];
 	} else {
-		// jsonFile = await window.showWorkspaceFolderPick({
-		// 	placeHolder: 'Select a json, where the created input should be stored.'
-		// });
 		const items: QuickPickItem[] = jsonFiles.map(jsonFile => {
 			return {
 				label: path.basename(jsonFile.uri.fsPath),
 				description: path.dirname(jsonFile.uri.fsPath),
-				uri: jsonFile.uri
+				jsonFile
 			};
 		});
-		const res: any = await window.showQuickPick(items);
+		const res: any = await window.showQuickPick(items, {
+			placeHolder: "Select the file to store the input parameter in.",
+			ignoreFocusOut: true
+		});
 		if (res) {
-			jsonFile = res.uri;
+			jsonFile = res.jsonFile;
 		}
 	}
 	if (!jsonFile) {
 		return;
 	}
-
-	// get command id by input box
-	const id = await window.showInputBox({
-		prompt: 'Enter the input name, usable in tasks with ${input:<name>}.',
-		validateInput: (value: string) => value.includes(' ') ? 'No spaces allowed here!' : undefined
-	});
-	if (!id) {
-		window.showWarningMessage('Canceled adding status bar parameter. A status bar parameter needs a name to get used by ${input:<name>}!');
-		return;
-	}
-
-	// get args by input box
-	let args: string[] = [];
-	let arg: string | undefined = "";
-	let i = 1;
-	while (true) {
-		arg = await window.showInputBox({
-			prompt: `Enter ${i++}. parameter, leave empty when finished.`
-		});
-		if (arg === '') {
-			break;
-		} else if (arg === undefined) {
-			args = [];
-			break;
-		}
-		args.push(arg);
-	}
-	if (args.length === 0) {
-		window.showWarningMessage('Canceled adding status bar parameter. Adding a status bar parameter without selectable values is not allowed!');
-		return;
-	}
-
-	// read current tasks.json
-	let fileContent;
-	try {
-		fileContent = (await workspace.fs.readFile(jsonFile)).toString();
-	} catch {
-		fileContent = '{}';
-	}
-
-	// add to json
-	try {
-		let rootNode = jsonc.parse(fileContent);
-		if (!rootNode) {
-			rootNode = {};
-		}
-		let tasksRoot = rootNode;
-		const versionPath = ['version'];
-		const tasksPath = ['tasks'];
-		const inputsPath = ['inputs'];
-
-		if (jsonFile.path.endsWith('.code-workspace')) {
-			if (!rootNode.tasks) {
-				rootNode.tasks = {};
-			}
-			tasksRoot = rootNode.tasks;
-			versionPath.unshift('tasks');
-			tasksPath.unshift('tasks');
-			inputsPath.unshift('tasks');
-		}
-
-		if (!jsonFile.path.endsWith('launch.json')) {
-			if (!rootNode.version) {
-				fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, versionPath, "2.0.0", { formattingOptions: {} }));
-			}
-			if (!tasksRoot.tasks) {
-				tasksRoot.tasks = [];
-			}
-			// add example task
-			tasksRoot.tasks.push({
-				label: `echo value of ${id}`,
-				type: 'shell',
-				command: `echo \"Current value of ${id} is '\${input:${id}}'\."`,
-				problemMatcher: []
-			});
-			fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, tasksPath, tasksRoot.tasks, { formattingOptions: {} }));
-		}
-		// add input
-		if (!tasksRoot.inputs) {
-			tasksRoot.inputs = [];
-		}
-		tasksRoot.inputs.push({
-			id,
-			type: 'command',
-			command: `statusBarParam.get.${id}`,
-			args
-		});
-		fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, inputsPath, tasksRoot.inputs, { formattingOptions: {} }));
-
-		workspace.fs.writeFile(jsonFile, Buffer.from(fileContent));
-		// workspace.fs.writeFile(tasksUri, Buffer.from(JSON.stringify(tasks, undefined, 4)));
-	} catch (err) {
-		console.error(err);
-	}
+	jsonFile.createParam();
 }

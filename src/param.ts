@@ -3,6 +3,10 @@ import * as ext from './extension';
 import { exec } from 'child_process';
 import * as path from 'path';
 
+export interface ParamOptions {
+    multipleSelection?: boolean;
+}
+
 /**
  * Abstract Param base class
  */
@@ -64,8 +68,10 @@ export abstract class Param {
     }
 
     async onClick() {
-        const values = await this.getValues();
-        values.push(this.EDIT_STRING);
+        let values = await this.getValues();
+        if (ext.getShowEdit()) {
+            values = values.concat(this.EDIT_STRING);
+        }
         const value = await window.showQuickPick(values);
         if (value === this.EDIT_STRING) {
             this.showParamInJson();
@@ -91,7 +97,7 @@ export abstract class Param {
         if (text === '') {
             this.statusBarItem.color = this.COLOR_INACTIVE;
             text = this.name;
-        } else if (ext.getShowParamNames()) {
+        } else if (ext.getShowNames()) {
             this.statusBarItem.color = '';
             text = `${this.name}: ${text}`;
         } else {
@@ -130,20 +136,20 @@ export class ArrayParam extends Param {
 /**
  * Flag Param
  */
-interface FlagOptions {
-    flag: string;
+export interface SwitchOptions extends ParamOptions {
+    value: string;
 }
 export class SwitchParam extends Param {
     options: SwitchOptions;
 
-    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, options: FlagOptions) {
+    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, options: SwitchOptions) {
         super(name, command, priority, offset, jsonFile);
         this.options = options;
         this.statusBarItem.text = this.name;
     }
 
     async onClick() {
-        this.setSelectedValue(!this.getSelectedValue() ? this.options.flag : '');
+        this.setSelectedValue(!this.getSelectedValue() ? this.options.value : '');
     }
 
     setText(text: string) {
@@ -152,17 +158,17 @@ export class SwitchParam extends Param {
     }
 
     async getValues(): Promise<string[]> {
-        return [this.options.flag, ''];
+        return [this.options.value, ''];
     }
 }
 
 /**
  * CommandParam
  */
-interface CommandOptions {
+export interface CommandOptions extends ParamOptions {
     shellCmd: string;
-    cwd: string | undefined;
-    separator: string | undefined;
+    cwd?: string;
+    separator?: string;
 }
 export class CommandParam extends Param {
     options: CommandOptions;
