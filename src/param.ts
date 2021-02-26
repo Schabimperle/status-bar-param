@@ -1,4 +1,4 @@
-import { commands, Disposable, Range, StatusBarAlignment, StatusBarItem, Uri, window, workspace } from 'vscode';
+import { commands, Disposable, Range, StatusBarAlignment, StatusBarItem, ThemeColor, Uri, window, workspace } from 'vscode';
 import * as ext from './extension';
 import { exec } from 'child_process';
 import * as path from 'path';
@@ -7,7 +7,7 @@ import * as path from 'path';
  * Abstract Param base class
  */
 export abstract class Param {
-    readonly FONT_COLOR_DISABLED = '#cccccc';
+    readonly COLOR_INACTIVE = new ThemeColor('gitDecoration.ignoredResourceForeground');
     readonly EDIT_STRING = '$(settings) Edit...';
     name: string;
     commandGetValue: string;
@@ -79,7 +79,7 @@ export abstract class Param {
         const textDocument = await workspace.openTextDocument(this.jsonFile);
         const position = textDocument.positionAt(this.offset);
         const selection = new Range(position, position);
-        await window.showTextDocument(textDocument, {selection});
+        await window.showTextDocument(textDocument, { selection });
     }
 
     setSelectedValue(value: string) {
@@ -89,7 +89,7 @@ export abstract class Param {
 
     setText(text: string) {
         if (text === '') {
-            this.statusBarItem.color = this.FONT_COLOR_DISABLED;
+            this.statusBarItem.color = this.COLOR_INACTIVE;
             text = this.name;
         } else if (ext.getShowParamNames()) {
             this.statusBarItem.color = '';
@@ -133,8 +133,8 @@ export class ArrayParam extends Param {
 interface FlagOptions {
     flag: string;
 }
-export class FlagParam extends Param {
-    options: FlagOptions;
+export class SwitchParam extends Param {
+    options: SwitchOptions;
 
     constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, options: FlagOptions) {
         super(name, command, priority, offset, jsonFile);
@@ -148,7 +148,7 @@ export class FlagParam extends Param {
 
     setText(text: string) {
         // text = `${this.name} ${text ? '\u25cb' : '\u25c9'}`;
-        this.statusBarItem.color = text ? '' : this.FONT_COLOR_DISABLED;
+        this.statusBarItem.color = text ? '' : this.COLOR_INACTIVE;
     }
 
     async getValues(): Promise<string[]> {
