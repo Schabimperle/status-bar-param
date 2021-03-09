@@ -2,6 +2,7 @@ import { commands, Disposable, Range, StatusBarAlignment, StatusBarItem, ThemeCo
 import * as ext from './extension';
 import { exec } from 'child_process';
 import * as path from 'path';
+import { Strings } from './strings';
 
 export interface ParamOptions {
     multipleSelection?: boolean;
@@ -13,8 +14,7 @@ export interface ParamOptions {
 export abstract class Param {
     readonly COLOR_INACTIVE = new ThemeColor('gitDecoration.ignoredResourceForeground');
     name: string;
-    commandGetValue: string;
-    commandSelectValue: string;
+    commandGet: string;
     statusBarItem: StatusBarItem;
     disposables: Disposable[] = [];
     priority: number;
@@ -23,7 +23,7 @@ export abstract class Param {
 
     constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri) {
         this.name = name;
-        this.commandGetValue = command;
+        this.commandGet = command;
         this.priority = priority;
         this.offset = offset;
         this.jsonFile = jsonFile;
@@ -32,19 +32,19 @@ export abstract class Param {
         this.statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, this.priority);
         this.statusBarItem.tooltip = this.name;
         this.disposables.push(this.statusBarItem);
-        this.commandSelectValue = `statusBarParam.select.${this.name}`;
-        this.statusBarItem.command = this.commandSelectValue;
+        this.statusBarItem.command = {
+            title: 'Select',
+            command: Strings.COMMAND_SELECT,
+            arguments: [this],
+            tooltip: this.name
+        };
         this.update();
 
         try {
             // create command to retrieve the selected value (when input:<input_id> is used in json)
-            let displosable = commands.registerCommand(this.commandGetValue, () => this.getSelectedValue());
-            this.disposables.push(displosable);
-
-            // create command for selection of status bar param
-            displosable = commands.registerCommand(this.statusBarItem.command, () => this.onClick());
-            this.disposables.push(displosable);
-
+            this.disposables.push(
+                commands.registerCommand(this.commandGet, () => this.onGet())
+            );
             this.statusBarItem.show();
         } catch (err) {
             console.error(err);
@@ -55,7 +55,7 @@ export abstract class Param {
     }
 
     async update() {
-        let value = await this.getSelectedValue();
+        let value = await this.onGet();
         const values = await this.getValues();
         if (value === undefined || values.indexOf(value) === -1) {
             value = values[0];
@@ -66,7 +66,7 @@ export abstract class Param {
         this.setSelectedValue(value);
     }
 
-    async onClick() {
+    async onSelect() {
         const values = await this.getValues();
         const selection = await window.showQuickPick(values);
         if (selection !== undefined) {
@@ -74,7 +74,7 @@ export abstract class Param {
         }
     }
 
-    async showParamInJson() {
+    async onEdit() {
         const textDocument = await workspace.openTextDocument(this.jsonFile);
         const position = textDocument.positionAt(this.offset);
         const selection = new Range(position, position);
@@ -82,7 +82,7 @@ export abstract class Param {
     }
 
     setSelectedValue(value: string) {
-        ext.getExtensionContext().workspaceState.update(this.commandGetValue, value);
+        ext.getExtensionContext().workspaceState.update(this.commandGet, value);
         this.setText(value);
     }
 
@@ -99,8 +99,8 @@ export abstract class Param {
         this.statusBarItem.text = text;
     }
 
-    getSelectedValue() {
-        return ext.getExtensionContext().workspaceState.get<string>(this.commandGetValue);
+    onGet() {
+        return ext.getExtensionContext().workspaceState.get<string>(this.commandGet);
     }
 
     dispose() {
@@ -141,12 +141,11 @@ export class SwitchParam extends Param {
         this.statusBarItem.text = this.name;
     }
 
-    async onClick() {
-        this.setSelectedValue(!this.getSelectedValue() ? this.options.value : '');
+    async onSelect() {
+        this.setSelectedValue(!this.onGet() ? this.options.value : '');
     }
 
     setText(text: string) {
-        // text = `${this.name} ${text ? '\u25cb' : '\u25c9'}`;
         this.statusBarItem.color = text ? '' : this.COLOR_INACTIVE;
     }
 

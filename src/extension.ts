@@ -1,6 +1,8 @@
 import { workspace, ExtensionContext, window, commands, Uri, WorkspaceFolder, QuickPickItem } from 'vscode';
 import { JsonFile } from './jsonFile';
 import * as path from 'path';
+import { Strings } from './strings';
+import { Param } from './param';
 
 const jsonFiles: JsonFile[] = [];
 const workspaceInputFiles = ['.vscode/tasks.json', '.vscode/launch.json'];
@@ -27,15 +29,18 @@ export function activate(context: ExtensionContext) {
 	// listen for settings changes
 	const disposable = workspace.onDidChangeConfiguration(e => {
 		console.debug('onDidChangeConfiguration');
-		if (e.affectsConfiguration('statusBarParam')) {
+		if (e.affectsConfiguration(Strings.EXTENSION_NAME)) {
 			configurationChanged();
 		}
 	});
 	context.subscriptions.push(disposable);
 
 	// add command for creation of status bar items
-	const command = commands.registerCommand('statusBarParam.add', addPramToJson);
-	context.subscriptions.push(command);
+	context.subscriptions.push(
+		commands.registerCommand(Strings.COMMAND_ADD, addPramToJson),
+		createParamCommand(Strings.COMMAND_SELECT, (param) => param.onSelect()),
+		createParamCommand(Strings.COMMAND_EDIT, (param) => param.onEdit()),
+	);
 
 	// listen for changes of workspace folders
 	const workspaceWatcher = workspace.onDidChangeWorkspaceFolders((e) => {
@@ -50,6 +55,28 @@ export function activate(context: ExtensionContext) {
 	}
 	// init workspace
 	workspace.workspaceFolders?.forEach((workspaceFolder) => addWorkspaceFolder(workspaceFolder));
+}
+
+function createParamCommand(commandString: string, cb: (param: Param) => any) {
+	return commands.registerCommand(commandString, async (param?: Param) => {
+		if (!param) {
+			const items = jsonFiles.map(jsonFile => jsonFile.params).reduce((a, b) => a.concat(b)).map(param => {
+				return {
+					label: param.name,
+					description: param.onGet(),
+					param
+				};
+			});
+			const res: any = await window.showQuickPick(items, {
+				placeHolder: "Select a parameter.",
+				ignoreFocusOut: true
+			});
+			param = res?.param;
+		}
+		if (param) {
+			cb(param);
+		}
+	});
 }
 
 function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
@@ -68,8 +95,7 @@ function addJsonFile(path: Uri) {
 
 function configurationChanged() {
 	console.debug('configurationChanged');
-	const currShowNames = workspace.getConfiguration('statusBarParam').get<boolean>('showNames');
-	const currShowEdit = workspace.getConfiguration('statusBarParam').get<boolean>('showEdit');
+	const currShowNames = workspace.getConfiguration(Strings.EXTENSION_NAME).get<boolean>('showNames');
 	if (currShowNames !== undefined && showNames !== currShowNames) {
 		showNames = currShowNames;
 		jsonFiles.forEach(jsonFile => jsonFile.update());

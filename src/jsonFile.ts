@@ -2,9 +2,10 @@ import { workspace, Uri, WorkspaceFolder, RelativePattern, Disposable, QuickPick
 import * as jsonc from 'jsonc-parser';
 import * as fs from 'fs';
 import { ArrayParam, CommandParam, SwitchParam, Param, CommandOptions, SwitchOptions } from './param';
+import { Strings } from './strings';
 
 export class JsonFile implements Disposable {
-	readonly PRIORITY_STEP = 0.001;
+	static readonly PRIORITY_STEP = 0.001;
 	readonly uri: Uri;
 	readonly priority: number;
 	readonly workspaceFolder: WorkspaceFolder | undefined;
@@ -87,11 +88,11 @@ export class JsonFile implements Disposable {
 			inputs?.children?.forEach(inputNode => {
 				// ignore inputs not intended for this extension
 				const input = jsonc.getNodeValue(inputNode);
-				if (!input.command || !input.command.startsWith('statusBarParam.get.') || input.args.length === 0) {
+				if (!input.command || !input.command.startsWith(`${Strings.EXTENSION_NAME}.get.`) || input.args.length === 0) {
 					return;
 				}
 				// calculate priority depending on the priority of this json file for the params to show in the correct order
-				const paramPriority = this.priority - (this.params.length * this.PRIORITY_STEP);
+				const paramPriority = this.priority - (this.params.length * JsonFile.PRIORITY_STEP);
 				// create specific param and add it to the status bar
 				if (input.args instanceof Array) {
 					this.params.push(new ArrayParam(input.id, input.command, paramPriority, inputNode.offset, this.uri, input.args));
@@ -196,15 +197,21 @@ export class JsonFile implements Disposable {
 				if (!shellCmd) {
 					return;
 				}
+				const options: CommandOptions = { shellCmd };
 				const separator = await window.showInputBox({
 					prompt: `Optional: Enter the separator to split the values by. Defaults to '\\n.'`,
 					ignoreFocusOut: true
 				});
+				if (separator) {
+					options.separator = separator;
+				}
 				const cwd = await window.showInputBox({
 					prompt: `Optional: Enter the path to execute the command from. Defaults to workspace root.`,
 					ignoreFocusOut: true
 				});
-				const options: CommandOptions = { shellCmd, separator, cwd };
+				if (cwd) {
+					options.cwd = cwd;
+				}
 				args = options;
 				break;
 			}
@@ -275,7 +282,8 @@ export class JsonFile implements Disposable {
 			}
 			const input = {
 				id,
-				command: `statusBarParam.get.${id}`,
+				type: 'command',
+				command: `${Strings.EXTENSION_NAME}.get.${id}`,
 				args
 			};
 			inputsPath.push(tasksRoot.inputs.length);
