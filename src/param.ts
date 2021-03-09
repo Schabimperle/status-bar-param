@@ -12,7 +12,6 @@ export interface ParamOptions {
  */
 export abstract class Param {
     readonly COLOR_INACTIVE = new ThemeColor('gitDecoration.ignoredResourceForeground');
-    readonly EDIT_STRING = '$(settings) Edit...';
     name: string;
     commandGetValue: string;
     commandSelectValue: string;
@@ -68,16 +67,10 @@ export abstract class Param {
     }
 
     async onClick() {
-        let values = await this.getValues();
-        if (ext.getShowEdit()) {
-            values = values.concat(this.EDIT_STRING);
-        }
-        const value = await window.showQuickPick(values);
-        if (value === this.EDIT_STRING) {
-            this.showParamInJson();
-        }
-        else if (value !== undefined) {
-            this.setSelectedValue(value);
+        const values = await this.getValues();
+        const selection = await window.showQuickPick(values);
+        if (selection !== undefined) {
+            this.setSelectedValue(selection);
         }
     }
 

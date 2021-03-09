@@ -6,7 +6,6 @@ const jsonFiles: JsonFile[] = [];
 const workspaceInputFiles = ['.vscode/tasks.json', '.vscode/launch.json'];
 let extensionContext: ExtensionContext;
 let showNames: boolean;
-let showEdit: boolean;
 let priority = 100;
 
 export function getExtensionContext() {
@@ -15,10 +14,6 @@ export function getExtensionContext() {
 
 export function getShowNames() {
 	return showNames;
-}
-
-export function getShowEdit() {
-	return showEdit;
 }
 
 export function activate(context: ExtensionContext) {
@@ -78,9 +73,6 @@ function configurationChanged() {
 	if (currShowNames !== undefined && showNames !== currShowNames) {
 		showNames = currShowNames;
 		jsonFiles.forEach(jsonFile => jsonFile.update());
-	}
-	if (currShowEdit !== undefined && showEdit !== currShowEdit) {
-		showEdit = currShowEdit;
 	}
 }
 
