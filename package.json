@@ -23,6 +23,14 @@
 		"Other"
 	],
 	"contributes": {
+		"views": {
+			"explorer": [
+				{
+					"id": "statusBarParam",
+					"name": "Status Bar Parameter"
+				}
+			]
+		},
 		"configuration": {
 			"type": "object",
 			"title": "StatusBarParam",
@@ -39,19 +47,45 @@
 			{
 				"command": "statusBarParam.add",
 				"category": "StatusBarParam",
-				"title": "Add"
+				"title": "Add",
+				"icon": "$(add)"
 			},
 			{
 				"command": "statusBarParam.select",
 				"category": "StatusBarParam",
-				"title": "Select"
+				"title": "Change Selection"
 			},
 			{
 				"command": "statusBarParam.edit",
 				"category": "StatusBarParam",
-				"title": "Edit"
+				"title": "Edit",
+				"icon": "$(edit)"
 			}
-		]
+		],
+		"menus": {
+			"view/title": [
+				{
+					"command": "statusBarParam.add",
+					"group": "navigation"
+				},
+				{
+					"command": "statusBarParam.edit",
+					"group": "navigation"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "statusBarParam.add",
+					"when": "viewItem == JsonFile",
+					"group": "navigation"
+				},
+				{
+					"command": "statusBarParam.select",
+					"when": "viewItem == Param",
+					"group": "navigation"
+				}
+			]
+		}
 	},
 	"activationEvents": [
 		"*"

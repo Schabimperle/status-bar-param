@@ -1,8 +1,9 @@
-import { commands, Disposable, Range, StatusBarAlignment, StatusBarItem, ThemeColor, Uri, window, workspace } from 'vscode';
+import { commands, Disposable, Range, StatusBarAlignment, StatusBarItem, ThemeColor, ThemeIcon, Uri, window, workspace } from 'vscode';
 import * as ext from './extension';
 import { exec } from 'child_process';
 import * as path from 'path';
 import { Strings } from './strings';
+import { ParameterProvider } from './parameterProvider';
 
 export interface ParamOptions {
     multipleSelection?: boolean;
@@ -20,6 +21,18 @@ export abstract class Param {
     priority: number;
     offset: number;
     jsonFile: Uri;
+
+    static getIcon(param: Param) {
+        if (param instanceof ArrayParam) {
+            return ArrayParam.icon;
+        } else if (param instanceof CommandParam) {
+            return CommandParam.icon;
+        } else if (param instanceof SwitchParam) {
+            return SwitchParam.icon;
+        } else {
+            return new ThemeIcon('');
+        }
+    }
 
     constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri) {
         this.name = name;
@@ -84,6 +97,7 @@ export abstract class Param {
     setSelectedValue(value: string) {
         ext.getExtensionContext().workspaceState.update(this.commandGet, value);
         this.setText(value);
+        ParameterProvider.onDidChangeTreeDataEmitter.fire(this);
     }
 
     setText(text: string) {
@@ -114,6 +128,7 @@ export abstract class Param {
  * Array Param
  */
 export class ArrayParam extends Param {
+    static readonly icon = new ThemeIcon('array');
     values: string[];
 
     constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, values: string[]) {
@@ -133,6 +148,7 @@ export interface SwitchOptions extends ParamOptions {
     value: string;
 }
 export class SwitchParam extends Param {
+    static readonly icon = new ThemeIcon('breakpoints-activate');
     options: SwitchOptions;
 
     constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, options: SwitchOptions) {
@@ -163,6 +179,7 @@ export interface CommandOptions extends ParamOptions {
     separator?: string;
 }
 export class CommandParam extends Param {
+    static readonly icon = new ThemeIcon('terminal');
     options: CommandOptions;
 
     constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, options: CommandOptions) {

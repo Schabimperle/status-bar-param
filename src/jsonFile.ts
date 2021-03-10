@@ -3,24 +3,23 @@ import * as jsonc from 'jsonc-parser';
 import * as fs from 'fs';
 import { ArrayParam, CommandParam, SwitchParam, Param, CommandOptions, SwitchOptions } from './param';
 import { Strings } from './strings';
+import * as path from 'path';
+import { ParameterProvider } from './parameterProvider';
 
 export class JsonFile implements Disposable {
-	static readonly PRIORITY_STEP = 0.001;
-	readonly uri: Uri;
-	readonly priority: number;
-	readonly workspaceFolder: WorkspaceFolder | undefined;
-	lastRead: number = 0;
+	private static readonly PRIORITY_STEP = 0.001;
+	private lastRead: number = 0;
+	private disposables: Disposable[] = [];
 	params: Param[] = [];
-	disposables: Disposable[] = [];
 
-	static FromInsideWorkspace(workspaceFolder: WorkspaceFolder, relativePath: string, priority: number): JsonFile {
+	static FromInsideWorkspace(priority: number, workspaceFolder: WorkspaceFolder, relativePath: string): JsonFile {
 		console.debug('FromInsideWorkspace:', workspaceFolder.name, relativePath);
 
 		// workaround for bug: https://github.com/microsoft/vscode/issues/10633
 		const uri = workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/${relativePath}` });
 
 		// wait for changes of tasks.json
-		const jsonFile = new JsonFile(uri, priority, workspaceFolder);
+		const jsonFile = new JsonFile(priority, uri, workspaceFolder);
 		const pattern = new RelativePattern(workspaceFolder, relativePath);
 		const watcher = workspace.createFileSystemWatcher(pattern);
 		watcher.onDidChange(() => jsonFile.multipleChangeTriggersWorkaound());
@@ -33,11 +32,11 @@ export class JsonFile implements Disposable {
 		return jsonFile;
 	}
 
-	static FromOutsideWorkspace(path: Uri, priority: number): JsonFile {
+	static FromOutsideWorkspace(priority: number, path: Uri): JsonFile {
 		console.debug('FromOutsideWorkspace:', path.toString());
 
 		// wait for changes of the given file
-		const jsonFile = new JsonFile(path, priority);
+		const jsonFile = new JsonFile(priority, path);
 		const watcher = fs.watch(path.fsPath);
 		watcher.on('change', () => jsonFile.multipleChangeTriggersWorkaound());
 		watcher.on('close', () => jsonFile.clear());
@@ -48,14 +47,18 @@ export class JsonFile implements Disposable {
 		return jsonFile;
 	}
 
-	constructor(uri: Uri, priority: number, workspaceFolder?: WorkspaceFolder) {
-		this.uri = uri;
+	constructor(private priority: number, public uri: Uri, public workspaceFolder?: WorkspaceFolder) {
 		this.priority = priority;
+		this.uri = uri;
 		this.workspaceFolder = workspaceFolder;
 	}
 
+	getFileName() {
+		return path.basename(this.uri.fsPath);
+	}
+
 	// workaround for didChange event fired twice for one change
-	async multipleChangeTriggersWorkaound() {
+	private async multipleChangeTriggersWorkaound() {
 		console.debug('multipleChangeTriggersWorkaound');
 		try {
 			const stat = await workspace.fs.stat(this.uri);
@@ -71,7 +74,7 @@ export class JsonFile implements Disposable {
 		}
 	}
 
-	async jsonFileChanged(jsonFile: Uri) {
+	private async jsonFileChanged(jsonFile: Uri) {
 		console.debug('jsonFileChanged', jsonFile.toString());
 
 		this.clear();
@@ -105,6 +108,7 @@ export class JsonFile implements Disposable {
 		} catch (err) {
 			console.error("Couldn't read/parse json:", err);
 		}
+		ParameterProvider.onDidChangeTreeDataEmitter.fire(this);
 	}
 
 	update() {
@@ -130,23 +134,25 @@ export class JsonFile implements Disposable {
 
 	async createParam() {
 		// select param type to add
+		const arrayLabel = `\$(${ArrayParam.icon.id}) Array`;
+		const commandLabel = `\$(${CommandParam.icon.id}) Command`;
+		const switchLabel = `\$(${SwitchParam.icon.id}) Switch`;
 		const items: QuickPickItem[] = [
 			{
-				label: 'Array',
+				label: arrayLabel,
 				description: 'Use values from a given Array.'
 			},
 			{
-				label: 'Command',
+				label: commandLabel,
 				description: 'Use values parsed from a given shell command.'
 			},
 			{
-				label: 'Switch',
+				label: switchLabel,
 				description: 'Either returning the given string (on) or an empty one (off).'
 			}
 		];
 		const paramType = await window.showQuickPick(items, {
 			placeHolder: 'Select the type of the parameter.',
-			ignoreFocusOut: true
 		});
 		if (!paramType) {
 			return;
@@ -164,7 +170,7 @@ export class JsonFile implements Disposable {
 
 		let args: any;
 		switch (paramType.label) {
-			case 'Array': {
+			case arrayLabel: {
 				args = [];
 				// get args by input box
 				let arg: string | undefined = "";
@@ -188,7 +194,7 @@ export class JsonFile implements Disposable {
 				}
 				break;
 			}
-			case 'Command': {
+			case commandLabel: {
 				// get args by input box
 				const shellCmd = await window.showInputBox({
 					prompt: `Enter the command to execute to receive the values.`,
@@ -215,7 +221,7 @@ export class JsonFile implements Disposable {
 				args = options;
 				break;
 			}
-			case 'Switch': {
+			case switchLabel: {
 				// get args by input box
 				const value = await window.showInputBox({
 					prompt: `Enter the value to return when the switch is enabled.`,

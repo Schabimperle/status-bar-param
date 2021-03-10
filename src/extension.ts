@@ -1,8 +1,8 @@
 import { workspace, ExtensionContext, window, commands, Uri, WorkspaceFolder, QuickPickItem } from 'vscode';
 import { JsonFile } from './jsonFile';
-import * as path from 'path';
 import { Strings } from './strings';
 import { Param } from './param';
+import { ParameterProvider } from './parameterProvider';
 
 const jsonFiles: JsonFile[] = [];
 const workspaceInputFiles = ['.vscode/tasks.json', '.vscode/launch.json'];
@@ -20,41 +20,45 @@ export function getShowNames() {
 
 export function activate(context: ExtensionContext) {
 	console.debug('activate');
-
 	extensionContext = context;
 
-	// init showParamName value
+	// init extension configuration
 	configurationChanged();
 
-	// listen for settings changes
-	const disposable = workspace.onDidChangeConfiguration(e => {
-		console.debug('onDidChangeConfiguration');
-		if (e.affectsConfiguration(Strings.EXTENSION_NAME)) {
-			configurationChanged();
-		}
-	});
-	context.subscriptions.push(disposable);
-
-	// add command for creation of status bar items
+	// add disposables to the context array to be disposed at extension shutdown
 	context.subscriptions.push(
+
+		// listen for extension configuration changes
+		workspace.onDidChangeConfiguration(e => {
+			console.debug('onDidChangeConfiguration');
+			if (e.affectsConfiguration(Strings.EXTENSION_NAME)) {
+				configurationChanged();
+			}
+		}),
+
+		// add command for creation of a parameter
 		commands.registerCommand(Strings.COMMAND_ADD, addPramToJson),
+		// add command for selection of a value of a parameter
 		createParamCommand(Strings.COMMAND_SELECT, (param) => param.onSelect()),
+		// add command for editing of a parameter
 		createParamCommand(Strings.COMMAND_EDIT, (param) => param.onEdit()),
+
+		// listen for changes of workspace folders
+		workspace.onDidChangeWorkspaceFolders((e) => {
+			e.added.forEach(workspaceFolder => addWorkspaceFolder(workspaceFolder));
+			e.removed.forEach(workspaceFolder => removeWorkspaceFolder(workspaceFolder));
+			ParameterProvider.onDidChangeTreeDataEmitter.fire();
+		})
 	);
-
-	// listen for changes of workspace folders
-	const workspaceWatcher = workspace.onDidChangeWorkspaceFolders((e) => {
-		e.added.forEach(workspaceFolder => addWorkspaceFolder(workspaceFolder));
-		e.removed.forEach(workspaceFolder => removeWorkspaceFolder(workspaceFolder));
-	});
-	context.subscriptions.push(workspaceWatcher);
-
 	// listen for changes of the .code-workspace file
 	if (workspace.workspaceFile && workspace.workspaceFile.scheme !== 'untitled') {
 		addJsonFile(workspace.workspaceFile);
 	}
 	// init workspace
 	workspace.workspaceFolders?.forEach((workspaceFolder) => addWorkspaceFolder(workspaceFolder));
+
+	// register status bar param tab in file explorer
+	window.registerTreeDataProvider(Strings.EXTENSION_NAME, new ParameterProvider(jsonFiles));
 }
 
 function createParamCommand(commandString: string, cb: (param: Param) => any) {
@@ -62,14 +66,13 @@ function createParamCommand(commandString: string, cb: (param: Param) => any) {
 		if (!param) {
 			const items = jsonFiles.map(jsonFile => jsonFile.params).reduce((a, b) => a.concat(b)).map(param => {
 				return {
-					label: param.name,
+					label: `$(${Param.getIcon(param).id}) ${param.name}`,
 					description: param.onGet(),
 					param
 				};
 			});
 			const res: any = await window.showQuickPick(items, {
 				placeHolder: "Select a parameter.",
-				ignoreFocusOut: true
 			});
 			param = res?.param;
 		}
@@ -82,14 +85,14 @@ function createParamCommand(commandString: string, cb: (param: Param) => any) {
 function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
 	console.debug('addWorkspaceFolder', workspaceFolder.name);
 	workspaceInputFiles.forEach(relativePath => {
-		const jsonFile = JsonFile.FromInsideWorkspace(workspaceFolder, relativePath, priority--);
+		const jsonFile = JsonFile.FromInsideWorkspace(priority--, workspaceFolder, relativePath);
 		jsonFiles.push(jsonFile);
 	});
 }
 
 function addJsonFile(path: Uri) {
 	console.debug('addJsonFile', path.toString());
-	const jsonFile = JsonFile.FromOutsideWorkspace(path, priority--);
+	const jsonFile = JsonFile.FromOutsideWorkspace(priority--, path);
 	jsonFiles.push(jsonFile);
 }
 
@@ -117,32 +120,32 @@ export function deactivate() {
 	jsonFiles.forEach(jsonFile => jsonFile.dispose());
 }
 
-async function addPramToJson() {
+async function addPramToJson(jsonFile?: JsonFile) {
 	console.debug('addPramToJson');
 	// check if there is a workspace where a tasks.json can be written
-	let jsonFile: JsonFile | null = null;
-	if (jsonFiles.length === 0) {
-		window.showWarningMessage('You need to open a folder or workspace first!');
-	} else if (jsonFiles.length === 1) {
-		jsonFile = jsonFiles[0];
-	} else {
-		const items: QuickPickItem[] = jsonFiles.map(jsonFile => {
-			return {
-				label: path.basename(jsonFile.uri.fsPath),
-				description: path.dirname(jsonFile.uri.fsPath),
-				jsonFile
-			};
-		});
-		const res: any = await window.showQuickPick(items, {
-			placeHolder: "Select the file to store the input parameter in.",
-			ignoreFocusOut: true
-		});
-		if (res) {
-			jsonFile = res.jsonFile;
-		}
-	}
 	if (!jsonFile) {
-		return;
+		if (jsonFiles.length === 0) {
+			window.showWarningMessage('You need to open a folder or workspace first!');
+		} else if (jsonFiles.length === 1) {
+			jsonFile = jsonFiles[0];
+		} else {
+			const items: QuickPickItem[] = jsonFiles.map(jsonFile => {
+				return {
+					label: jsonFile.getFileName(),
+					description: jsonFile.workspaceFolder?.name,
+					jsonFile
+				};
+			});
+			const res: any = await window.showQuickPick(items, {
+				placeHolder: "Select the file to store the input parameter in.",
+			});
+			if (res) {
+				jsonFile = res.jsonFile;
+			}
+		}
+		if (!jsonFile) {
+			return;
+		}
 	}
 	jsonFile.createParam();
 }
