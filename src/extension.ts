@@ -42,6 +42,8 @@ export function activate(context: ExtensionContext) {
 		createParamCommand(Strings.COMMAND_SELECT, (param) => param.onSelect()),
 		// add command for editing of a parameter
 		createParamCommand(Strings.COMMAND_EDIT, (param) => param.onEdit()),
+		// add command for deletion of a parameter
+		createParamCommand(Strings.COMMAND_DELETE, (param) => param.onDelete()),
 
 		// listen for changes of workspace folders
 		workspace.onDidChangeWorkspaceFolders((e) => {

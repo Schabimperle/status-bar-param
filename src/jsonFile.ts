@@ -1,10 +1,17 @@
 import { workspace, Uri, WorkspaceFolder, RelativePattern, Disposable, QuickPickItem, window } from 'vscode';
 import * as jsonc from 'jsonc-parser';
+import { JSONPath } from 'jsonc-parser';
 import * as fs from 'fs';
 import { ArrayParam, CommandParam, SwitchParam, Param, CommandOptions, SwitchOptions } from './param';
 import { Strings } from './strings';
 import * as path from 'path';
 import { ParameterProvider } from './parameterProvider';
+
+export interface JsoncPaths {
+	versionPath: JSONPath
+	tasksPath: JSONPath
+	inputsPath: JSONPath
+}
 
 export class JsonFile implements Disposable {
 	private static readonly PRIORITY_STEP = 0.001;
@@ -57,6 +64,20 @@ export class JsonFile implements Disposable {
 		return path.basename(this.uri.fsPath);
 	}
 
+	getJsoncPaths() {
+		const res: JsoncPaths = {
+			versionPath: ['version'],
+			tasksPath: ['tasks'],
+			inputsPath: ['inputs'],
+		};
+		if (this.uri.path.endsWith('.code-workspace')) {
+			res.versionPath.unshift('tasks');
+			res.tasksPath.unshift('tasks');
+			res.inputsPath.unshift('tasks');
+		}
+		return res;
+	}
+
 	// workaround for didChange event fired twice for one change
 	private async multipleChangeTriggersWorkaound() {
 		console.debug('multipleChangeTriggersWorkaound');
@@ -88,7 +109,11 @@ export class JsonFile implements Disposable {
 			const inputs = jsonc.findNodeAtLocation(rootNode, ['inputs']);
 
 			this.params = [];
-			inputs?.children?.forEach(inputNode => {
+			if (!inputs?.children) {
+				return;
+			}
+			for (let i = 0; i < inputs.children.length; i++) {
+				const inputNode = inputs.children[i];
 				// ignore inputs not intended for this extension
 				const input = jsonc.getNodeValue(inputNode);
 				if (!input.command || !input.command.startsWith(`${Strings.EXTENSION_NAME}.get.`) || input.args.length === 0) {
@@ -98,13 +123,13 @@ export class JsonFile implements Disposable {
 				const paramPriority = this.priority - (this.params.length * JsonFile.PRIORITY_STEP);
 				// create specific param and add it to the status bar
 				if (input.args instanceof Array) {
-					this.params.push(new ArrayParam(input.id, input.command, paramPriority, inputNode.offset, this.uri, input.args));
+					this.params.push(new ArrayParam(input.id, input.command, paramPriority, inputNode.offset, i, this, input.args));
 				} else if (input.args.shellCmd) {
-					this.params.push(new CommandParam(input.id, input.command, paramPriority, inputNode.offset, this.uri, input.args));
+					this.params.push(new CommandParam(input.id, input.command, paramPriority, inputNode.offset, i, this, input.args));
 				} else if (input.args.value) {
-					this.params.push(new SwitchParam(input.id, input.command, paramPriority, inputNode.offset, this.uri, input.args));
+					this.params.push(new SwitchParam(input.id, input.command, paramPriority, inputNode.offset, i, this, input.args));
 				}
-			});
+			}
 		} catch (err) {
 			console.error("Couldn't read/parse json:", err);
 		}
@@ -251,23 +276,19 @@ export class JsonFile implements Disposable {
 				rootNode = {};
 			}
 			let tasksRoot = rootNode;
-			const versionPath = ['version'];
-			const tasksPath = ['tasks'];
-			const inputsPath = ['inputs'];
+
+			const jsoncPaths = this.getJsoncPaths();
 
 			if (this.uri.path.endsWith('.code-workspace')) {
 				if (!rootNode.tasks) {
 					rootNode.tasks = {};
 				}
 				tasksRoot = rootNode.tasks;
-				versionPath.unshift('tasks');
-				tasksPath.unshift('tasks');
-				inputsPath.unshift('tasks');
 			}
 
 			if (!this.uri.path.endsWith('launch.json')) {
 				if (!rootNode.version) {
-					fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, versionPath, "2.0.0", { formattingOptions: {} }));
+					fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, jsoncPaths.versionPath, "2.0.0", { formattingOptions: {} }));
 				}
 				if (!tasksRoot.tasks) {
 					tasksRoot.tasks = [];
@@ -279,8 +300,8 @@ export class JsonFile implements Disposable {
 					command: `echo \"Current value of ${id} is '\${input:${id}}'\."`,
 					problemMatcher: []
 				};
-				tasksPath.push(tasksRoot.tasks.length);
-				fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, tasksPath, task, { formattingOptions: {} }));
+				jsoncPaths.tasksPath.push(tasksRoot.tasks.length);
+				fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, jsoncPaths.tasksPath, task, { formattingOptions: {} }));
 			}
 			// add input
 			if (!tasksRoot.inputs) {
@@ -292,8 +313,8 @@ export class JsonFile implements Disposable {
 				command: `${Strings.EXTENSION_NAME}.get.${id}`,
 				args
 			};
-			inputsPath.push(tasksRoot.inputs.length);
-			const modifications = jsonc.modify(fileContent, inputsPath, input, { formattingOptions: {} });
+			jsoncPaths.inputsPath.push(tasksRoot.inputs.length);
+			const modifications = jsonc.modify(fileContent, jsoncPaths.inputsPath, input, { formattingOptions: {} });
 			// workaround to prevent escaping of backslashes by jsonc.modify (or JSON.stringify)
 			modifications.forEach(modification => modification.content = modification.content.replace(/\\\\/g, '\\'));
 			fileContent = jsonc.applyEdits(fileContent, modifications);

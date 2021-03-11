@@ -25,8 +25,8 @@ export class ParameterProvider implements TreeDataProvider<JsonFile | Param> {
                 iconPath: Param.getIcon(element),
                 contextValue: 'Param',
                 command: {
-                    title: 'Edit',
-                    command: Strings.COMMAND_EDIT,
+                    title: 'Select',
+                    command: Strings.COMMAND_SELECT,
                     arguments: [element],
                 }
             };

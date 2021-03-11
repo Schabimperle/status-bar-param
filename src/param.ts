@@ -4,6 +4,8 @@ import { exec } from 'child_process';
 import * as path from 'path';
 import { Strings } from './strings';
 import { ParameterProvider } from './parameterProvider';
+import * as jsonc from 'jsonc-parser';
+import { JsonFile } from './jsonFile';
 
 export interface ParamOptions {
     multipleSelection?: boolean;
@@ -13,14 +15,9 @@ export interface ParamOptions {
  * Abstract Param base class
  */
 export abstract class Param {
-    readonly COLOR_INACTIVE = new ThemeColor('gitDecoration.ignoredResourceForeground');
-    name: string;
-    commandGet: string;
-    statusBarItem: StatusBarItem;
-    disposables: Disposable[] = [];
-    priority: number;
-    offset: number;
-    jsonFile: Uri;
+    protected static readonly COLOR_INACTIVE = new ThemeColor('gitDecoration.ignoredResourceForeground');
+    protected readonly statusBarItem: StatusBarItem;
+    protected readonly disposables: Disposable[] = [];
 
     static getIcon(param: Param) {
         if (param instanceof ArrayParam) {
@@ -34,12 +31,13 @@ export abstract class Param {
         }
     }
 
-    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri) {
-        this.name = name;
-        this.commandGet = command;
-        this.priority = priority;
-        this.offset = offset;
-        this.jsonFile = jsonFile;
+    constructor(
+        public readonly name: string,
+        protected readonly commandGet: string,
+        protected readonly priority: number,
+        protected readonly jsonOffset: number,
+        protected readonly jsonArrayIndex: number,
+        protected readonly jsonFile: JsonFile) {
 
         // create status bar item
         this.statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, this.priority);
@@ -88,8 +86,8 @@ export abstract class Param {
     }
 
     async onEdit() {
-        const textDocument = await workspace.openTextDocument(this.jsonFile);
-        const position = textDocument.positionAt(this.offset);
+        const textDocument = await workspace.openTextDocument(this.jsonFile.uri);
+        const position = textDocument.positionAt(this.jsonOffset);
         const selection = new Range(position, position);
         await window.showTextDocument(textDocument, { selection });
     }
@@ -102,7 +100,7 @@ export abstract class Param {
 
     setText(text: string) {
         if (text === '') {
-            this.statusBarItem.color = this.COLOR_INACTIVE;
+            this.statusBarItem.color = Param.COLOR_INACTIVE;
             text = this.name;
         } else if (ext.getShowNames()) {
             this.statusBarItem.color = '';
@@ -117,6 +115,17 @@ export abstract class Param {
         return ext.getExtensionContext().workspaceState.get<string>(this.commandGet);
     }
 
+    async onDelete() {
+        const selection = await window.showQuickPick(["No", "Yes"], { placeHolder: 'Do you really want to delete ' + this.name + '?' });
+        if (selection !== undefined) {
+            let fileContent = (await workspace.fs.readFile(this.jsonFile.uri)).toString();
+            const jsoncInputsPath = this.jsonFile.getJsoncPaths().inputsPath;
+            jsoncInputsPath.push(this.jsonArrayIndex);
+            fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, jsoncInputsPath, undefined, { formattingOptions: {} }));
+            workspace.fs.writeFile(this.jsonFile.uri, Buffer.from(fileContent));
+        }
+    }
+
     dispose() {
         this.disposables.forEach(disposable => disposable.dispose());
     }
@@ -129,11 +138,9 @@ export abstract class Param {
  */
 export class ArrayParam extends Param {
     static readonly icon = new ThemeIcon('array');
-    values: string[];
 
-    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, values: string[]) {
-        super(name, command, priority, offset, jsonFile);
-        this.values = values;
+    constructor(name: string, command: string, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile, private values: string[]) {
+        super(name, command, priority, jsonOffset, jsonArrayIndex, jsonFile);
     }
 
     async getValues(): Promise<string[]> {
@@ -151,8 +158,8 @@ export class SwitchParam extends Param {
     static readonly icon = new ThemeIcon('breakpoints-activate');
     options: SwitchOptions;
 
-    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, options: SwitchOptions) {
-        super(name, command, priority, offset, jsonFile);
+    constructor(name: string, command: string, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile, options: SwitchOptions) {
+        super(name, command, priority, jsonOffset, jsonArrayIndex, jsonFile);
         this.options = options;
         this.statusBarItem.text = this.name;
     }
@@ -162,7 +169,7 @@ export class SwitchParam extends Param {
     }
 
     setText(text: string) {
-        this.statusBarItem.color = text ? '' : this.COLOR_INACTIVE;
+        this.statusBarItem.color = text ? '' : Param.COLOR_INACTIVE;
     }
 
     async getValues(): Promise<string[]> {
@@ -180,15 +187,13 @@ export interface CommandOptions extends ParamOptions {
 }
 export class CommandParam extends Param {
     static readonly icon = new ThemeIcon('terminal');
-    options: CommandOptions;
 
-    constructor(name: string, command: string, priority: number, offset: number, jsonFile: Uri, options: CommandOptions) {
-        super(name, command, priority, offset, jsonFile);
-        this.options = options;
+    constructor(name: string, command: string, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile, private options: CommandOptions) {
+        super(name, command, priority, jsonOffset, jsonArrayIndex, jsonFile);
     }
 
     async getValues() {
-        let execPath = path.dirname(this.jsonFile.fsPath).replace(/.vscode$/, '');
+        let execPath = path.dirname(this.jsonFile.uri.fsPath).replace(/.vscode$/, '');
         if (this.options.cwd) {
             execPath = path.resolve(execPath, this.options.cwd);;
         }

@@ -60,29 +60,42 @@
 				"category": "StatusBarParam",
 				"title": "Edit",
 				"icon": "$(edit)"
+			},
+			{
+				"command": "statusBarParam.delete",
+				"category": "StatusBarParam",
+				"title": "Delete",
+				"icon": "$(trash)"
 			}
 		],
 		"menus": {
 			"view/title": [
 				{
 					"command": "statusBarParam.add",
-					"group": "navigation"
+					"when": "view == statusBarParam",
+					"group": "navigation@2"
 				},
 				{
 					"command": "statusBarParam.edit",
-					"group": "navigation"
+					"when": "view == statusBarParam",
+					"group": "navigation@1"
 				}
 			],
 			"view/item/context": [
 				{
 					"command": "statusBarParam.add",
 					"when": "viewItem == JsonFile",
-					"group": "navigation"
+					"group": "inline"
 				},
 				{
-					"command": "statusBarParam.select",
-					"when": "viewItem == Param",
-					"group": "navigation"
+					"command": "statusBarParam.edit",
+					"group": "inline@1",
+					"when": "viewItem == Param"
+				},
+				{
+					"command": "statusBarParam.delete",
+					"group": "inline@2",
+					"when": "viewItem == Param"
 				}
 			]
 		}
