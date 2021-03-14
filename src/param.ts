@@ -1,4 +1,4 @@
-import { commands, Disposable, Range, StatusBarAlignment, StatusBarItem, ThemeColor, ThemeIcon, Uri, window, workspace } from 'vscode';
+import { env, commands, Disposable, Range, StatusBarAlignment, StatusBarItem, ThemeColor, ThemeIcon, Uri, window, workspace, QuickPickItem } from 'vscode';
 import * as ext from './extension';
 import { exec } from 'child_process';
 import * as path from 'path';
@@ -113,6 +113,30 @@ export abstract class Param {
 
     onGet() {
         return ext.getExtensionContext().workspaceState.get<string>(this.commandGet);
+    }
+
+    async onCopyCmd() {
+        const inputStringLabel = "Copy Input String";
+        const commandStringLabel = "Copy Command String";
+        const items: QuickPickItem[] = [
+            {
+                label: inputStringLabel,
+                description: 'To use only in the vscode configuration file as the parameter is defined.'
+            },
+            {
+                label: commandStringLabel,
+                description: 'To use across vscode configuration files.'
+            }
+        ];
+        const copyType = await window.showQuickPick(items, {
+            placeHolder: 'Select the string you want to copy.',
+        });
+        if (copyType?.label === inputStringLabel) {
+            env.clipboard.writeText(`\${input:${this.name}}`);
+        }
+        else if (copyType?.label === commandStringLabel) {
+            env.clipboard.writeText(`\${command:${Strings.EXTENSION_ID}.get.${this.name}}`);
+        }
     }
 
     async onDelete() {

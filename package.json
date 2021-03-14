@@ -1,7 +1,7 @@
 {
 	"name": "status-bar-param",
-	"displayName": "Status Bar Parameter",
-	"description": "Add selectable parameter to the status bar, which can be used in vscode configuration files.",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "1.3.1",
 	"publisher": "mschababerle",
 	"icon": "images/icon.png",
@@ -27,7 +27,7 @@
 			"explorer": [
 				{
 					"id": "statusBarParam",
-					"name": "Status Bar Parameter"
+					"name": "%displayName%"
 				}
 			]
 		},
@@ -46,24 +46,31 @@
 		"commands": [
 			{
 				"command": "statusBarParam.add",
-				"category": "StatusBarParam",
+				"category": "Status Bar Parameter",
 				"title": "Add",
 				"icon": "$(add)"
 			},
 			{
 				"command": "statusBarParam.select",
-				"category": "StatusBarParam",
-				"title": "Change Selection"
+				"category": "Status Bar Parameter",
+				"title": "Change Selection",
+				"icon": "$(kebab-vertical)"
 			},
 			{
 				"command": "statusBarParam.edit",
-				"category": "StatusBarParam",
+				"category": "Status Bar Parameter",
 				"title": "Edit",
 				"icon": "$(edit)"
 			},
 			{
+				"command": "statusBarParam.copyCmd",
+				"category": "Status Bar Parameter",
+				"title": "Copy Command String",
+				"icon": "$(clippy)"
+			},
+			{
 				"command": "statusBarParam.delete",
-				"category": "StatusBarParam",
+				"category": "Status Bar Parameter",
 				"title": "Delete",
 				"icon": "$(trash)"
 			}
@@ -84,17 +91,37 @@
 			"view/item/context": [
 				{
 					"command": "statusBarParam.add",
-					"when": "viewItem == JsonFile",
-					"group": "inline"
+					"group": "inline",
+					"when": "viewItem == JsonFile"
 				},
 				{
-					"command": "statusBarParam.edit",
+					"command": "statusBarParam.copyCmd",
 					"group": "inline@1",
 					"when": "viewItem == Param"
 				},
 				{
-					"command": "statusBarParam.delete",
+					"command": "statusBarParam.select",
 					"group": "inline@2",
+					"when": "viewItem == Param"
+				},
+				{
+					"command": "statusBarParam.edit",
+					"group": "navigation",
+					"when": "view == statusBarParam"
+				},
+				{
+					"command": "statusBarParam.select",
+					"group": "2_workspace",
+					"when": "viewItem == Param"
+				},
+				{
+					"command": "statusBarParam.copyCmd",
+					"group": "6_copypath",
+					"when": "viewItem == Param"
+				},
+				{
+					"command": "statusBarParam.delete",
+					"group": "7_modification",
 					"when": "viewItem == Param"
 				}
 			]

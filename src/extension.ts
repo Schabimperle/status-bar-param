@@ -31,7 +31,7 @@ export function activate(context: ExtensionContext) {
 		// listen for extension configuration changes
 		workspace.onDidChangeConfiguration(e => {
 			console.debug('onDidChangeConfiguration');
-			if (e.affectsConfiguration(Strings.EXTENSION_NAME)) {
+			if (e.affectsConfiguration(Strings.EXTENSION_ID)) {
 				configurationChanged();
 			}
 		}),
@@ -42,6 +42,8 @@ export function activate(context: ExtensionContext) {
 		createParamCommand(Strings.COMMAND_SELECT, (param) => param.onSelect()),
 		// add command for editing of a parameter
 		createParamCommand(Strings.COMMAND_EDIT, (param) => param.onEdit()),
+		// add command for editing of a parameter
+		createParamCommand(Strings.COMMAND_COPY_CMD, (param) => param.onCopyCmd()),
 		// add command for deletion of a parameter
 		createParamCommand(Strings.COMMAND_DELETE, (param) => param.onDelete()),
 
@@ -60,7 +62,7 @@ export function activate(context: ExtensionContext) {
 	workspace.workspaceFolders?.forEach((workspaceFolder) => addWorkspaceFolder(workspaceFolder));
 
 	// register status bar param tab in file explorer
-	window.registerTreeDataProvider(Strings.EXTENSION_NAME, new ParameterProvider(jsonFiles));
+	window.registerTreeDataProvider(Strings.EXTENSION_ID, new ParameterProvider(jsonFiles));
 }
 
 function createParamCommand(commandString: string, cb: (param: Param) => any) {
@@ -100,7 +102,7 @@ function addJsonFile(path: Uri) {
 
 function configurationChanged() {
 	console.debug('configurationChanged');
-	const currShowNames = workspace.getConfiguration(Strings.EXTENSION_NAME).get<boolean>('showNames');
+	const currShowNames = workspace.getConfiguration(Strings.EXTENSION_ID).get<boolean>('showNames');
 	if (currShowNames !== undefined && showNames !== currShowNames) {
 		showNames = currShowNames;
 		jsonFiles.forEach(jsonFile => jsonFile.update());

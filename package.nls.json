@@ -1,0 +1,4 @@
+{
+    "displayName": "Status Bar Parameter",
+    "description": "Add selectable parameter to the status bar, which can be used in vscode configuration files."
+}

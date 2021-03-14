@@ -116,7 +116,7 @@ export class JsonFile implements Disposable {
 				const inputNode = inputs.children[i];
 				// ignore inputs not intended for this extension
 				const input = jsonc.getNodeValue(inputNode);
-				if (!input.command || !input.command.startsWith(`${Strings.EXTENSION_NAME}.get.`) || input.args.length === 0) {
+				if (!input.command || !input.command.startsWith(`${Strings.EXTENSION_ID}.get.`) || input.args.length === 0) {
 					return;
 				}
 				// calculate priority depending on the priority of this json file for the params to show in the correct order
@@ -310,7 +310,7 @@ export class JsonFile implements Disposable {
 			const input = {
 				id,
 				type: 'command',
-				command: `${Strings.EXTENSION_NAME}.get.${id}`,
+				command: `${Strings.EXTENSION_ID}.get.${id}`,
 				args
 			};
 			jsoncPaths.inputsPath.push(tasksRoot.inputs.length);
