@@ -5,5 +5,4 @@ export class Strings {
     static readonly COMMAND_EDIT = `${Strings.EXTENSION_ID}.edit`;
     static readonly COMMAND_COPY_CMD = `${Strings.EXTENSION_ID}.copyCmd`;
     static readonly COMMAND_DELETE = `${Strings.EXTENSION_ID}.delete`;
-
 }

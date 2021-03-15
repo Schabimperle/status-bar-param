@@ -8,7 +8,13 @@ import * as jsonc from 'jsonc-parser';
 import { JsonFile } from './jsonFile';
 
 export interface ParamOptions {
-    multipleSelection?: boolean;
+    canPickMany?: boolean;
+}
+
+interface ParamInput {
+    id: string,
+    command: string,
+    args: any
 }
 
 /**
@@ -24,16 +30,13 @@ export abstract class Param {
             return ArrayParam.icon;
         } else if (param instanceof CommandParam) {
             return CommandParam.icon;
-        } else if (param instanceof SwitchParam) {
-            return SwitchParam.icon;
         } else {
             return new ThemeIcon('');
         }
     }
 
     constructor(
-        public readonly name: string,
-        protected readonly commandGet: string,
+        public readonly input: ParamInput,
         protected readonly priority: number,
         protected readonly jsonOffset: number,
         protected readonly jsonArrayIndex: number,
@@ -41,20 +44,20 @@ export abstract class Param {
 
         // create status bar item
         this.statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, this.priority);
-        this.statusBarItem.tooltip = this.name;
+        this.statusBarItem.tooltip = this.input.id;
         this.disposables.push(this.statusBarItem);
         this.statusBarItem.command = {
             title: 'Select',
             command: Strings.COMMAND_SELECT,
             arguments: [this],
-            tooltip: this.name
+            tooltip: this.input.id
         };
         this.update();
 
         try {
             // create command to retrieve the selected value (when input:<input_id> is used in json)
             this.disposables.push(
-                commands.registerCommand(this.commandGet, () => this.onGet())
+                commands.registerCommand(this.input.command, () => this.onGet())
             );
             this.statusBarItem.show();
         } catch (err) {
@@ -66,22 +69,23 @@ export abstract class Param {
     }
 
     async update() {
-        let value = await this.onGet();
+        let selection = await this.getStoredValues();
         const values = await this.getValues();
-        if (value === undefined || values.indexOf(value) === -1) {
-            value = values[0];
+        selection = selection?.filter(s => values.includes(s));
+        if (!this.input.args.canPickMany && selection.length === 0) {
+            selection = [values[0]];
         }
-        if (value === undefined) {
-            window.showWarningMessage(`Parameter '${this.name}' has no arguments!`);
+        if (selection === undefined) {
+            window.showWarningMessage(`Parameter '${this.input.id}' has no arguments!`);
         }
-        this.setSelectedValue(value);
+        this.setSelectedValues(selection);
     }
 
     async onSelect() {
         const values = await this.getValues();
-        const selection = await window.showQuickPick(values);
+        const selection = await window.showQuickPick(values, { canPickMany: this.input.args.canPickMany });
         if (selection !== undefined) {
-            this.setSelectedValue(selection);
+            this.setSelectedValues(typeof selection === 'string' ? [selection] : selection);
         }
     }
 
@@ -92,27 +96,38 @@ export abstract class Param {
         await window.showTextDocument(textDocument, { selection });
     }
 
-    setSelectedValue(value: string) {
-        ext.getExtensionContext().workspaceState.update(this.commandGet, value);
-        this.setText(value);
+    setSelectedValues(values: string[]) {
+        ext.getExtensionContext().workspaceState.update(this.input.command, values);
+        this.setText(values);
         ParameterProvider.onDidChangeTreeDataEmitter.fire(this);
     }
 
-    setText(text: string) {
-        if (text === '') {
+    setText(selection: string[]) {
+        let text;
+        if (selection.length === 0 || selection.length === 1 && selection[0] === '') {
             this.statusBarItem.color = Param.COLOR_INACTIVE;
-            text = this.name;
+            text = this.input.id;
         } else if (ext.getShowNames()) {
             this.statusBarItem.color = '';
-            text = `${this.name}: ${text}`;
+            text = `${this.input.id}: ${selection.join(' ')}`;
         } else {
             this.statusBarItem.color = '';
+            text = `${selection.join(' ')}`;
         }
         this.statusBarItem.text = text;
     }
 
     onGet() {
-        return ext.getExtensionContext().workspaceState.get<string>(this.commandGet);
+        return this.getStoredValues().join(' ');
+    }
+
+    getStoredValues() {
+        let values = ext.getExtensionContext().workspaceState.get<string[]>(this.input.command) || [];
+        // to remain compatible for stored values of version 1.3.1 and before
+        if (typeof values === 'string') {
+            values = [values];
+        }
+        return values;
     }
 
     async onCopyCmd() {
@@ -121,7 +136,7 @@ export abstract class Param {
         const items: QuickPickItem[] = [
             {
                 label: inputStringLabel,
-                description: 'To use only in the vscode configuration file as the parameter is defined.'
+                description: 'To use only in the vscode configuration file where the parameter is defined.'
             },
             {
                 label: commandStringLabel,
@@ -132,15 +147,15 @@ export abstract class Param {
             placeHolder: 'Select the string you want to copy.',
         });
         if (copyType?.label === inputStringLabel) {
-            env.clipboard.writeText(`\${input:${this.name}}`);
+            env.clipboard.writeText(`\${input:${this.input.id}}`);
         }
         else if (copyType?.label === commandStringLabel) {
-            env.clipboard.writeText(`\${command:${Strings.EXTENSION_ID}.get.${this.name}}`);
+            env.clipboard.writeText(`\${command:${Strings.EXTENSION_ID}.get.${this.input.id}}`);
         }
     }
 
     async onDelete() {
-        const selection = await window.showQuickPick(["No", "Yes"], { placeHolder: 'Do you really want to delete ' + this.name + '?' });
+        const selection = await window.showQuickPick(["No", "Yes"], { placeHolder: 'Do you really want to delete ' + this.input.id + '?' });
         if (selection !== undefined) {
             let fileContent = (await workspace.fs.readFile(this.jsonFile.uri)).toString();
             const jsoncInputsPath = this.jsonFile.getJsoncPaths().inputsPath;
@@ -160,44 +175,21 @@ export abstract class Param {
 /**
  * Array Param
  */
+export interface ArrayOptions extends ParamOptions {
+    values: string[];
+}
+interface ArrayInput extends ParamInput {
+    args: ArrayOptions
+}
 export class ArrayParam extends Param {
     static readonly icon = new ThemeIcon('array');
 
-    constructor(name: string, command: string, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile, private values: string[]) {
-        super(name, command, priority, jsonOffset, jsonArrayIndex, jsonFile);
+    constructor(input: ArrayInput, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile) {
+        super(input, priority, jsonOffset, jsonArrayIndex, jsonFile);
     }
 
     async getValues(): Promise<string[]> {
-        return this.values;
-    }
-}
-
-/**
- * Flag Param
- */
-export interface SwitchOptions extends ParamOptions {
-    value: string;
-}
-export class SwitchParam extends Param {
-    static readonly icon = new ThemeIcon('breakpoints-activate');
-    options: SwitchOptions;
-
-    constructor(name: string, command: string, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile, options: SwitchOptions) {
-        super(name, command, priority, jsonOffset, jsonArrayIndex, jsonFile);
-        this.options = options;
-        this.statusBarItem.text = this.name;
-    }
-
-    async onSelect() {
-        this.setSelectedValue(!this.onGet() ? this.options.value : '');
-    }
-
-    setText(text: string) {
-        this.statusBarItem.color = text ? '' : Param.COLOR_INACTIVE;
-    }
-
-    async getValues(): Promise<string[]> {
-        return [this.options.value, ''];
+        return Promise.resolve(this.input.args.values);
     }
 }
 
@@ -209,28 +201,31 @@ export interface CommandOptions extends ParamOptions {
     cwd?: string;
     separator?: string;
 }
+interface CommandInput extends ParamInput {
+    args: CommandOptions
+}
 export class CommandParam extends Param {
     static readonly icon = new ThemeIcon('terminal');
 
-    constructor(name: string, command: string, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile, private options: CommandOptions) {
-        super(name, command, priority, jsonOffset, jsonArrayIndex, jsonFile);
+    constructor(input: CommandInput, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile) {
+        super(input, priority, jsonOffset, jsonArrayIndex, jsonFile);
     }
 
     async getValues() {
         let execPath = path.dirname(this.jsonFile.uri.fsPath).replace(/.vscode$/, '');
-        if (this.options.cwd) {
-            execPath = path.resolve(execPath, this.options.cwd);;
+        if (this.input.args.cwd) {
+            execPath = path.resolve(execPath, this.input.args.cwd);;
         }
         try {
             await workspace.fs.stat(Uri.file(execPath));
-            const stdout = await this.execCmd(this.options.shellCmd, execPath);
-            const values = stdout.split(this.options.separator || '\n');
+            const stdout = await this.execCmd(this.input.args.shellCmd, execPath);
+            const values = stdout.split(this.input.args.separator || '\n');
             if (values && values.length > 0 && values[values.length - 1] === '') {
                 values.pop();
             }
             return values;
         } catch (e) {
-            const error = `Failed to launch command of ${this.name}: Starting directory (cwd) "${execPath}" does not exist.`;
+            const error = `Failed to launch command of ${this.input.id}: Starting directory (cwd) "${execPath}" does not exist.`;
             console.error(error);
             window.showErrorMessage(error);
             return [];
@@ -242,7 +237,7 @@ export class CommandParam extends Param {
             exec(cmd, { cwd }, (error, stdout, stderr) => {
                 if (error) {
                     console.error(error + ":", stderr);
-                    window.showErrorMessage(`Executing ${this.options.shellCmd} failed: ${stderr}`);
+                    window.showErrorMessage(`Executing ${this.input.args.shellCmd} failed: ${stderr}`);
                     return;
                 }
                 resolve(stdout);

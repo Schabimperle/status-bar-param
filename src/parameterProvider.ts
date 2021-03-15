@@ -20,7 +20,7 @@ export class ParameterProvider implements TreeDataProvider<JsonFile | Param> {
             };
         } else {
             return {
-                label: element.name,
+                label: element.input.id,
                 description: element.onGet(),
                 iconPath: Param.getIcon(element),
                 contextValue: 'Param',

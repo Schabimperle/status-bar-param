@@ -2,7 +2,7 @@ import { workspace, Uri, WorkspaceFolder, RelativePattern, Disposable, QuickPick
 import * as jsonc from 'jsonc-parser';
 import { JSONPath } from 'jsonc-parser';
 import * as fs from 'fs';
-import { ArrayParam, CommandParam, SwitchParam, Param, CommandOptions, SwitchOptions } from './param';
+import { ArrayParam, CommandParam, Param, CommandOptions } from './param';
 import { Strings } from './strings';
 import * as path from 'path';
 import { ParameterProvider } from './parameterProvider';
@@ -116,18 +116,20 @@ export class JsonFile implements Disposable {
 				const inputNode = inputs.children[i];
 				// ignore inputs not intended for this extension
 				const input = jsonc.getNodeValue(inputNode);
-				if (!input.command || !input.command.startsWith(`${Strings.EXTENSION_ID}.get.`) || input.args.length === 0) {
+				if (!input.id
+					|| !input.command
+					|| !input.command.startsWith(`${Strings.EXTENSION_ID}.get.`)
+					|| !input.args
+					|| input.args.length === 0) {
 					return;
 				}
 				// calculate priority depending on the priority of this json file for the params to show in the correct order
 				const paramPriority = this.priority - (this.params.length * JsonFile.PRIORITY_STEP);
 				// create specific param and add it to the status bar
-				if (input.args instanceof Array) {
-					this.params.push(new ArrayParam(input.id, input.command, paramPriority, inputNode.offset, i, this, input.args));
+				if (input.args instanceof Array || input.args.values) {
+					this.params.push(new ArrayParam(input, paramPriority, inputNode.offset, i, this));
 				} else if (input.args.shellCmd) {
-					this.params.push(new CommandParam(input.id, input.command, paramPriority, inputNode.offset, i, this, input.args));
-				} else if (input.args.value) {
-					this.params.push(new SwitchParam(input.id, input.command, paramPriority, inputNode.offset, i, this, input.args));
+					this.params.push(new CommandParam(input, paramPriority, inputNode.offset, i, this));
 				}
 			}
 		} catch (err) {
@@ -161,7 +163,6 @@ export class JsonFile implements Disposable {
 		// select param type to add
 		const arrayLabel = `\$(${ArrayParam.icon.id}) Array`;
 		const commandLabel = `\$(${CommandParam.icon.id}) Command`;
-		const switchLabel = `\$(${SwitchParam.icon.id}) Switch`;
 		const items: QuickPickItem[] = [
 			{
 				label: arrayLabel,
@@ -170,10 +171,6 @@ export class JsonFile implements Disposable {
 			{
 				label: commandLabel,
 				description: 'Use values parsed from a given shell command.'
-			},
-			{
-				label: switchLabel,
-				description: 'Either returning the given string (on) or an empty one (off).'
 			}
 		];
 		const paramType = await window.showQuickPick(items, {
@@ -243,19 +240,6 @@ export class JsonFile implements Disposable {
 				if (cwd) {
 					options.cwd = cwd;
 				}
-				args = options;
-				break;
-			}
-			case switchLabel: {
-				// get args by input box
-				const value = await window.showInputBox({
-					prompt: `Enter the value to return when the switch is enabled.`,
-					ignoreFocusOut: true
-				});
-				if (!value) {
-					return;
-				}
-				const options: SwitchOptions = { value };
 				args = options;
 				break;
 			}
