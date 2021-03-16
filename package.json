@@ -72,7 +72,7 @@
 				"command": "statusBarParam.delete",
 				"category": "Status Bar Parameter",
 				"title": "Delete",
-				"icon": "$(trash)"
+				"icon": "$(close)"
 			}
 		],
 		"menus": {
@@ -95,13 +95,18 @@
 					"when": "viewItem == JsonFile"
 				},
 				{
-					"command": "statusBarParam.copyCmd",
+					"command": "statusBarParam.select",
 					"group": "inline@1",
 					"when": "viewItem == Param"
 				},
 				{
-					"command": "statusBarParam.select",
+					"command": "statusBarParam.copyCmd",
 					"group": "inline@2",
+					"when": "viewItem == Param"
+				},
+				{
+					"command": "statusBarParam.delete",
+					"group": "inline@3",
 					"when": "viewItem == Param"
 				},
 				{

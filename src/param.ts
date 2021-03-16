@@ -14,7 +14,7 @@ export interface ParamOptions {
 interface ParamInput {
     id: string,
     command: string,
-    args: any
+    args: ParamOptions
 }
 
 /**
@@ -69,7 +69,7 @@ export abstract class Param {
     }
 
     async update() {
-        let selection = await this.getStoredValues();
+        let selection = await this.getSelectedValues();
         const values = await this.getValues();
         selection = selection?.filter(s => values.includes(s));
         if (!this.input.args.canPickMany && selection.length === 0) {
@@ -83,9 +83,24 @@ export abstract class Param {
 
     async onSelect() {
         const values = await this.getValues();
-        const selection = await window.showQuickPick(values, { canPickMany: this.input.args.canPickMany });
-        if (selection !== undefined) {
-            this.setSelectedValues(typeof selection === 'string' ? [selection] : selection);
+        const oldSelection = await this.getSelectedValues();
+        // preselect single selection
+        if (!this.input.args.canPickMany && oldSelection.length === 1) {
+            const selectionIndex = values.findIndex(value => value === oldSelection[0]);
+            if (selectionIndex !== -1) {
+                values.unshift(values.splice(selectionIndex, 1)[0]);
+            }
+        }
+        // preselect multiple selection
+        const items = values.map(value => {
+            return {
+                label: value,
+                picked: oldSelection.includes(value)
+            };
+        });
+        const newSelection = await window.showQuickPick(items, { canPickMany: this.input.args.canPickMany });
+        if (newSelection !== undefined) {
+            this.setSelectedValues(newSelection instanceof Array ? newSelection.map(value => value.label) : [newSelection.label]);
         }
     }
 
@@ -118,10 +133,10 @@ export abstract class Param {
     }
 
     onGet() {
-        return this.getStoredValues().join(' ');
+        return this.getSelectedValues().join(' ');
     }
 
-    getStoredValues() {
+    getSelectedValues() {
         let values = ext.getExtensionContext().workspaceState.get<string[]>(this.input.command) || [];
         // to remain compatible for stored values of version 1.3.1 and before
         if (typeof values === 'string') {
@@ -184,12 +199,13 @@ interface ArrayInput extends ParamInput {
 export class ArrayParam extends Param {
     static readonly icon = new ThemeIcon('array');
 
-    constructor(input: ArrayInput, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile) {
+    constructor(public input: ArrayInput, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile) {
         super(input, priority, jsonOffset, jsonArrayIndex, jsonFile);
     }
 
     async getValues(): Promise<string[]> {
-        return Promise.resolve(this.input.args.values);
+        // return a copy of the array to preserve the order
+        return Promise.resolve([...this.input.args.values]);
     }
 }
 
@@ -207,7 +223,7 @@ interface CommandInput extends ParamInput {
 export class CommandParam extends Param {
     static readonly icon = new ThemeIcon('terminal');
 
-    constructor(input: CommandInput, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile) {
+    constructor(public input: CommandInput, priority: number, jsonOffset: number, jsonArrayIndex: number, jsonFile: JsonFile) {
         super(input, priority, jsonOffset, jsonArrayIndex, jsonFile);
     }
 
