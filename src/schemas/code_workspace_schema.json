@@ -1,0 +1,9 @@
+{
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "tasks": {
+            "$ref": "tasks_launch_schema.json"
+        }
+    }
+}

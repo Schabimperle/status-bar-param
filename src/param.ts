@@ -7,21 +7,19 @@ import { ParameterProvider } from './parameterProvider';
 import * as jsonc from 'jsonc-parser';
 import { JsonFile } from './jsonFile';
 
+/**
+ * Abstract Param base class
+ */
 export interface ParamOptions {
     canPickMany?: boolean;
 }
-
 interface ParamInput {
     id: string,
     command: string,
     args: ParamOptions
 }
-
-/**
- * Abstract Param base class
- */
 export abstract class Param {
-    protected static readonly COLOR_INACTIVE = new ThemeColor('gitDecoration.ignoredResourceForeground');
+    protected static readonly COLOR_INACTIVE = new ThemeColor('input.foreground');
     protected readonly statusBarItem: StatusBarItem;
     protected readonly disposables: Disposable[] = [];
 
@@ -241,7 +239,7 @@ export class CommandParam extends Param {
             }
             return values;
         } catch (e) {
-            const error = `Failed to launch command of ${this.input.id}: Starting directory (cwd) "${execPath}" does not exist.`;
+            const error = `Failed to launch command ${this.input.id}: ${JSON.stringify(e)}`;
             console.error(error);
             window.showErrorMessage(error);
             return [];

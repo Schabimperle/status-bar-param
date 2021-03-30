@@ -112,7 +112,7 @@
 				{
 					"command": "statusBarParam.edit",
 					"group": "navigation",
-					"when": "view == statusBarParam"
+					"when": "viewItem == Param"
 				},
 				{
 					"command": "statusBarParam.select",
@@ -130,7 +130,21 @@
 					"when": "viewItem == Param"
 				}
 			]
-		}
+		},
+		"jsonValidation": [
+			{
+				"fileMatch": "tasks.json",
+				"url": "./src/schemas/tasks_launch_schema.json"
+			},
+			{
+				"fileMatch": "launch.json",
+				"url": "./src/schemas/tasks_launch_schema.json"
+			},
+			{
+				"fileMatch": "*.code-workspace",
+				"url": "./src/schemas/code_workspace_schema.json"
+			}
+		]
 	},
 	"activationEvents": [
 		"*"
@@ -154,10 +168,11 @@
 		"eslint": "^6.8.0",
 		"glob": "^7.1.6",
 		"mocha": "^7.2.0",
-		"typescript": "^3.9.9",
+		"typescript": "^4.1.5",
 		"vscode-test": "^1.5.1"
 	},
 	"dependencies": {
+		"ajv": "^8.0.1",
 		"jsonc-parser": "^2.3.1"
 	}
 }

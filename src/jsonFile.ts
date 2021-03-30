@@ -1,11 +1,22 @@
-import { workspace, Uri, WorkspaceFolder, RelativePattern, Disposable, QuickPickItem, window } from 'vscode';
+import { workspace, Uri, WorkspaceFolder, RelativePattern, Disposable, QuickPickItem, window, Range } from 'vscode';
 import * as jsonc from 'jsonc-parser';
 import { JSONPath } from 'jsonc-parser';
 import * as fs from 'fs';
-import { ArrayParam, CommandParam, Param, CommandOptions } from './param';
+import { ArrayParam, CommandParam, Param, ArrayOptions, CommandOptions } from './param';
 import { Strings } from './strings';
 import * as path from 'path';
 import { ParameterProvider } from './parameterProvider';
+import Ajv from 'ajv';
+
+// create schema validator functions for status bar parameters
+import tasksLaunchSchemaJson from './schemas/tasks_launch_schema.json';
+const ajv = new Ajv();
+tasksLaunchSchemaJson.properties.inputs.items.then.properties.args = (<any>{ type: ["array", "object"] });
+const validateStatusBarParamInput = ajv.compile<any>(tasksLaunchSchemaJson.properties.inputs.items);
+tasksLaunchSchemaJson.definitions.arrayOptions.anyOf[1].allOf![0] = (<any>tasksLaunchSchemaJson.definitions.options);
+const validateArrayInput = ajv.compile(tasksLaunchSchemaJson.definitions.arrayOptions);
+tasksLaunchSchemaJson.definitions.commandOptions.allOf![0] = (<any>tasksLaunchSchemaJson.definitions.options);
+const validateCommandInput = ajv.compile(tasksLaunchSchemaJson.definitions.commandOptions);
 
 export interface JsoncPaths {
 	versionPath: JSONPath
@@ -17,6 +28,7 @@ export class JsonFile implements Disposable {
 	private static readonly PRIORITY_STEP = 0.001;
 	private lastRead: number = 0;
 	private disposables: Disposable[] = [];
+	private paramIdToEditOnCreate: string = '';
 	params: Param[] = [];
 
 	static FromInsideWorkspace(priority: number, workspaceFolder: WorkspaceFolder, relativePath: string): JsonFile {
@@ -60,6 +72,10 @@ export class JsonFile implements Disposable {
 		this.workspaceFolder = workspaceFolder;
 	}
 
+	fileExists() {
+		return this.lastRead !== 0;
+	}
+
 	getFileName() {
 		return path.basename(this.uri.fsPath);
 	}
@@ -87,20 +103,20 @@ export class JsonFile implements Disposable {
 			if (lastWrite === this.lastRead) {
 				return;
 			}
+			this.jsonFileChanged(this.lastRead === 0);
 			this.lastRead = lastWrite;
-			this.jsonFileChanged(this.uri);
 		} catch (err) {
 			this.clear();
 			return;
 		}
 	}
 
-	private async jsonFileChanged(jsonFile: Uri) {
-		console.debug('jsonFileChanged', jsonFile.toString());
+	private async jsonFileChanged(triggerTreeViewAddJson: boolean) {
+		console.debug('jsonFileChanged', this.uri.toString());
 
 		this.clear();
 		try {
-			const fileContent = await workspace.fs.readFile(jsonFile);
+			const fileContent = await workspace.fs.readFile(this.uri);
 			let rootNode = jsonc.parseTree(fileContent.toString());
 			const tasks = jsonc.findNodeAtLocation(rootNode, ['tasks']);
 			if (tasks?.type === 'object') {
@@ -116,26 +132,41 @@ export class JsonFile implements Disposable {
 				const inputNode = inputs.children[i];
 				// ignore inputs not intended for this extension
 				const input = jsonc.getNodeValue(inputNode);
-				if (!input.id
-					|| !input.command
-					|| !input.command.startsWith(`${Strings.EXTENSION_ID}.get.`)
-					|| !input.args
-					|| input.args.length === 0) {
-					return;
-				}
 				// calculate priority depending on the priority of this json file for the params to show in the correct order
 				const paramPriority = this.priority - (this.params.length * JsonFile.PRIORITY_STEP);
+				// check if input is a statusBarParam
+				if (!validateStatusBarParamInput(input)) {
+					return;
+				}
+
+				if (input.args instanceof Array) {
+					input.args.values = input.args;
+				}
+
 				// create specific param and add it to the status bar
-				if (input.args instanceof Array || input.args.values) {
-					this.params.push(new ArrayParam(input, paramPriority, inputNode.offset, i, this));
-				} else if (input.args.shellCmd) {
-					this.params.push(new CommandParam(input, paramPriority, inputNode.offset, i, this));
+				let param;
+				if (validateArrayInput(input.args)) {
+					param = new ArrayParam(input, paramPriority, inputNode.offset, i, this);
+				} else if (validateCommandInput(input.args)) {
+					param = new CommandParam(input, paramPriority, inputNode.offset, i, this);
+				} else {
+					return;
+				}
+				this.params.push(param);
+
+				// open param added before
+				if (this.paramIdToEditOnCreate) {
+					param.onEdit();
 				}
 			}
 		} catch (err) {
 			console.error("Couldn't read/parse json:", err);
 		}
-		ParameterProvider.onDidChangeTreeDataEmitter.fire(this);
+		if (triggerTreeViewAddJson) {
+			ParameterProvider.onDidChangeTreeDataEmitter.fire();
+		} else {
+			ParameterProvider.onDidChangeTreeDataEmitter.fire(this);
+		}
 	}
 
 	update() {
@@ -151,6 +182,8 @@ export class JsonFile implements Disposable {
 				param.dispose();
 			}
 		}
+		this.lastRead = 0;
+		ParameterProvider.onDidChangeTreeDataEmitter.fire();
 	}
 
 	dispose() {
@@ -166,11 +199,11 @@ export class JsonFile implements Disposable {
 		const items: QuickPickItem[] = [
 			{
 				label: arrayLabel,
-				description: 'Use values from a given Array.'
+				description: 'A list of parameter values to select from.'
 			},
 			{
 				label: commandLabel,
-				description: 'Use values parsed from a given shell command.'
+				description: 'A shell command that outputs parameter values to select from.'
 			}
 		];
 		const paramType = await window.showQuickPick(items, {
@@ -190,7 +223,7 @@ export class JsonFile implements Disposable {
 			return;
 		}
 
-		let args: any;
+		let args: Array<string> | ArrayOptions | CommandOptions;
 		switch (paramType.label) {
 			case arrayLabel: {
 				args = [];
@@ -210,16 +243,11 @@ export class JsonFile implements Disposable {
 					}
 					args.push(arg);
 				}
-				if (args.length === 0) {
-					window.showWarningMessage('You need to add at least one value.');
-					return;
-				}
 				break;
 			}
 			case commandLabel: {
-				// get args by input box
 				const shellCmd = await window.showInputBox({
-					prompt: `Enter the command to execute to receive the values.`,
+					prompt: `Enter a shell command that outputs parameter values to select from.`,
 					ignoreFocusOut: true
 				});
 				if (!shellCmd) {
@@ -227,15 +255,17 @@ export class JsonFile implements Disposable {
 				}
 				const options: CommandOptions = { shellCmd };
 				const separator = await window.showInputBox({
-					prompt: `Optional: Enter the separator to split the values by. Defaults to '\\n.'`,
-					ignoreFocusOut: true
+					prompt: `Optional: Enter a string to separate the command output to selectable values. Defaults to '\\n'`,
+					ignoreFocusOut: true,
+					placeHolder: '\\n'
 				});
 				if (separator) {
 					options.separator = separator;
 				}
 				const cwd = await window.showInputBox({
-					prompt: `Optional: Enter the path to execute the command from. Defaults to workspace root.`,
-					ignoreFocusOut: true
+					prompt: `Optional: Enter the working directory to execute the shell command from. Defaults to the workspace root.`,
+					ignoreFocusOut: true,
+					placeHolder: this.workspaceFolder ? this.workspaceFolder.uri.fsPath : this.uri.fsPath
 				});
 				if (cwd) {
 					options.cwd = cwd;
@@ -243,6 +273,25 @@ export class JsonFile implements Disposable {
 				args = options;
 				break;
 			}
+		}
+
+		// read canPickMany
+		const canPickManyItems: QuickPickItem[] = [
+			{
+				label: 'false',
+			},
+			{
+				label: 'true',
+			}
+		];
+		const selection = await window.showQuickPick(canPickManyItems, {
+			placeHolder: 'Enable checkboxes for selection of multiple values?'
+		});
+		if (selection?.label === 'true') {
+			if (args! instanceof Array) {
+				args = { values: args };
+			}
+			args!.canPickMany = true;
 		}
 
 		// read current tasks.json
@@ -295,7 +344,7 @@ export class JsonFile implements Disposable {
 				id,
 				type: 'command',
 				command: `${Strings.EXTENSION_ID}.get.${id}`,
-				args
+				args: args!
 			};
 			jsoncPaths.inputsPath.push(tasksRoot.inputs.length);
 			const modifications = jsonc.modify(fileContent, jsoncPaths.inputsPath, input, { formattingOptions: {} });
@@ -303,6 +352,9 @@ export class JsonFile implements Disposable {
 			modifications.forEach(modification => modification.content = modification.content.replace(/\\\\/g, '\\'));
 			fileContent = jsonc.applyEdits(fileContent, modifications);
 			workspace.fs.writeFile(this.uri, Buffer.from(fileContent));
+
+			// open added param
+			this.paramIdToEditOnCreate = input.id;
 		} catch (err) {
 			console.error(err);
 		}

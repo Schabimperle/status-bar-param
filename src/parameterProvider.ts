@@ -16,7 +16,14 @@ export class ParameterProvider implements TreeDataProvider<JsonFile | Param> {
                 iconPath: ThemeIcon.File,
                 description: element.workspaceFolder?.name,
                 collapsibleState: TreeItemCollapsibleState.Expanded,
-                contextValue: 'JsonFile'
+                contextValue: 'JsonFile',
+                command: {
+                    title: 'Open',
+                    command: 'vscode.open',
+                    arguments: [
+                        element.uri
+                    ]
+                }
             };
         } else {
             return {
@@ -27,7 +34,7 @@ export class ParameterProvider implements TreeDataProvider<JsonFile | Param> {
                 command: {
                     title: 'Edit',
                     command: Strings.COMMAND_EDIT,
-                    arguments: [element],
+                    arguments: [element]
                 }
             };
         }
@@ -35,7 +42,8 @@ export class ParameterProvider implements TreeDataProvider<JsonFile | Param> {
 
     getChildren(element?: JsonFile) {
         if (!element) {
-            return this.jsonFiles;
+            // filter non existing jsonFiles
+            return this.jsonFiles.filter(jsonFile => jsonFile.fileExists());
         } else {
             return element.params;
         }
