@@ -238,8 +238,7 @@ export class JsonFile implements Disposable {
 					if (arg === '') {
 						break;
 					} else if (arg === undefined) {
-						args = [];
-						break;
+						return;
 					}
 					args.push(arg);
 				}
@@ -276,22 +275,29 @@ export class JsonFile implements Disposable {
 		}
 
 		// read canPickMany
-		const canPickManyItems: QuickPickItem[] = [
-			{
-				label: 'false',
-			},
-			{
-				label: 'true',
-			}
+		const boolItems: QuickPickItem[] = [
+			{ label: 'No' },
+			{ label: 'Yes' }
 		];
-		const selection = await window.showQuickPick(canPickManyItems, {
+		const canPickManyselection = await window.showQuickPick(boolItems, {
 			placeHolder: 'Enable checkboxes for selection of multiple values?'
 		});
-		if (selection?.label === 'true') {
+		if (canPickManyselection?.label === 'Yes') {
 			if (args! instanceof Array) {
 				args = { values: args };
 			}
 			args!.canPickMany = true;
+		}
+
+		// add sample task?
+		let addSampleTask = false;
+		if (!this.uri.path.endsWith('launch.json')) {
+			const addSampleTaskSelection = await window.showQuickPick(boolItems, {
+				placeHolder: 'Add sample task to demonstrate usage?'
+			});
+			if (addSampleTaskSelection?.label === 'Yes') {
+				addSampleTask = true;
+			}
 		}
 
 		// read current tasks.json
@@ -311,7 +317,6 @@ export class JsonFile implements Disposable {
 			let tasksRoot = rootNode;
 
 			const jsoncPaths = this.getJsoncPaths();
-
 			if (this.uri.path.endsWith('.code-workspace')) {
 				if (!rootNode.tasks) {
 					rootNode.tasks = {};
@@ -319,7 +324,7 @@ export class JsonFile implements Disposable {
 				tasksRoot = rootNode.tasks;
 			}
 
-			if (!this.uri.path.endsWith('launch.json')) {
+			if (addSampleTask) {
 				if (!rootNode.version) {
 					fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, jsoncPaths.versionPath, "2.0.0", { formattingOptions: {} }));
 				}
