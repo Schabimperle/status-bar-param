@@ -67,7 +67,7 @@ export abstract class Param {
     }
 
     async update() {
-        let selection = await this.getSelectedValues();
+        let selection = await this.loadSelectedValues();
         const values = await this.getValues();
         selection = selection?.filter(s => values.includes(s));
         if (!this.input.args.canPickMany && selection.length === 0) {
@@ -76,12 +76,12 @@ export abstract class Param {
         if (selection === undefined) {
             window.showWarningMessage(`Parameter '${this.input.id}' has no arguments!`);
         }
-        this.setSelectedValues(selection);
+        this.storeSelectedValues(selection);
     }
 
     async onSelect() {
         const values = await this.getValues();
-        const oldSelection = await this.getSelectedValues();
+        const oldSelection = await this.loadSelectedValues();
         // preselect single selection
         if (!this.input.args.canPickMany && oldSelection.length === 1) {
             const selectionIndex = values.findIndex(value => value === oldSelection[0]);
@@ -98,7 +98,7 @@ export abstract class Param {
         });
         const newSelection = await window.showQuickPick(items, { canPickMany: this.input.args.canPickMany });
         if (newSelection !== undefined) {
-            this.setSelectedValues(newSelection instanceof Array ? newSelection.map(value => value.label) : [newSelection.label]);
+            this.storeSelectedValues(newSelection instanceof Array ? newSelection.map(value => value.label) : [newSelection.label]);
         }
     }
 
@@ -109,7 +109,7 @@ export abstract class Param {
         await window.showTextDocument(textDocument, { selection });
     }
 
-    setSelectedValues(values: string[]) {
+    storeSelectedValues(values: string[]) {
         ext.getExtensionContext().workspaceState.update(this.input.command, values);
         this.setText(values);
         ParameterProvider.onDidChangeTreeDataEmitter.fire(this);
@@ -131,16 +131,21 @@ export abstract class Param {
     }
 
     onGet() {
-        return this.getSelectedValues().join(' ');
+        return this.loadSelectedValues().join(' ');
     }
 
-    getSelectedValues() {
-        let values = ext.getExtensionContext().workspaceState.get<string[]>(this.input.command) || [];
+    loadSelectedValues() {
+        let values = ext.getExtensionContext().workspaceState.get<string[]>(this.input.command);
         // to remain compatible for stored values of version 1.3.1 and before
-        if (typeof values === 'string') {
-            values = [values];
+        if (!values) {
+            const oldKey = `${Strings.COMMAND_SELECT}.${this.input.id}`;
+            const oldValues = ext.getExtensionContext().workspaceState.get<string>(oldKey);
+            if (oldValues) {
+                ext.getExtensionContext().workspaceState.update(oldKey, null);
+                values = [oldValues];
+            }
         }
-        return values;
+        return values || [];
     }
 
     async onCopyCmd() {
