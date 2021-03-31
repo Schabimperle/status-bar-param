@@ -2,6 +2,23 @@
 
 All notable changes to the "status-bar-param" extension will be documented in this file.
 
+## [1.4.0]
+
+- added retrieving values from shell commands
+- added option for multiple selection
+- added tree view (tab in file explorer)
+- added commands to...
+    - ... edit a parameter
+    - ... copy the retrieval string for a parameter
+    - ... delete a parameter
+    - ... select a parameter
+- added json schema validation for input sections 
+- minor improvements and bugfixes
+    - preselection of the last picked value in selection list
+    - made adding sample task optional
+    - added icons for array and command parameters
+    - updated extension overview
+
 ## [1.3.1]
 
 - Added parsing inputs from launch.json.

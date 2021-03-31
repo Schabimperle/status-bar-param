@@ -1,21 +1,26 @@
 # Status Bar Parameter
 
-This vscode extension adds selectable parameter to the status bar (in the bottom), which then can be read in vscode configuration files that offer an input section:
+This vscode extension adds selectable parameter to the status bar (in the bottom), which can be used in the following vscode configuration files:
 * tasks.json
 * launch.json
 * *.code-workspace
 
-![Demo](images/demo.gif)
+![Demo Select](./images/demo_select.gif)
 
-## Features
+<details><summary>Click to show how to add a parameter.</summary>
 
-* Add a parameter by using the command: `StatusBarParam: Add Parameter to Status Bar`.
-* Select an argument by clicking on the status bar item.
-* Retrieve the selected value in commands of tasks or launch with `${input:<param_name>}`.
-* Edit/Delete the entry at the input section of the json file to adjust/remove the parameter in the status bar
+![Demo Add](./images/demo_add.gif)
+</details>
 
-> Tip: You can also get the selected value in other tasks.json's or wherever vscode supports the substitution of commands. Just use `${command:statusBarParam.get.<param_name>}` instead of the mentioned 'input' syntax above.
+<details><summary>Click to show how to retrieve the selected value.</summary>
 
-## Known Issues
+![Demo Retrieve](./images/demo_retrieve.gif)
+</details>
 
-* None yet.
+<p></p>
+
+## Additional Features
+* Pick `Command` type when adding a parameter to parse the selectable parameters dynamically from a shell command.
+* Edit/Delete the entry at the input section of the configuration file to adjust/remove the parameter.
+* Add `"canPickMany": true` to the `args` object of any status bar parameter to enable multiple selection.
+* Use the string `${command:statusBarParam.get.<param_name>}` (instead of `${input:<param_name>}`) to retrieve the selected value of a parameter from any other vscode configuration file than the one it is defined in.
