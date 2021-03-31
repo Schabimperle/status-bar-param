@@ -1,0 +1,11 @@
+{
+    "type": "object",
+    "properties": {
+        "inputs": {
+            "type": "array",
+            "items": {
+                "$ref": "input_schema.json"
+            }
+        }
+    }
+}

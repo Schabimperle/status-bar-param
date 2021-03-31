@@ -134,22 +134,22 @@
 		"jsonValidation": [
 			{
 				"fileMatch": "tasks.json",
-				"url": "./src/schemas/tasks_launch_schema.json"
+				"url": "./schemas/tasks_launch_schema.json"
 			},
 			{
 				"fileMatch": "launch.json",
-				"url": "./src/schemas/tasks_launch_schema.json"
+				"url": "./schemas/tasks_launch_schema.json"
 			},
 			{
 				"fileMatch": "*.code-workspace",
-				"url": "./src/schemas/code_workspace_schema.json"
+				"url": "./schemas/code_workspace_schema.json"
 			}
 		]
 	},
 	"activationEvents": [
 		"*"
 	],
-	"main": "./out/extension.js",
+	"main": "./out/src/extension.js",
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
 		"compile": "npx tsc -p ./",

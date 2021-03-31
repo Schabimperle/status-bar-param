@@ -9,14 +9,14 @@ import { ParameterProvider } from './parameterProvider';
 import Ajv from 'ajv';
 
 // create schema validator functions for status bar parameters
-import tasksLaunchSchemaJson from './schemas/tasks_launch_schema.json';
+import inputSchema from '../schemas/input_schema.json';
 const ajv = new Ajv();
-tasksLaunchSchemaJson.properties.inputs.items.then.properties.args = (<any>{ type: ["array", "object"] });
-const validateStatusBarParamInput = ajv.compile<any>(tasksLaunchSchemaJson.properties.inputs.items);
-tasksLaunchSchemaJson.definitions.arrayOptions.anyOf[1].allOf![0] = (<any>tasksLaunchSchemaJson.definitions.options);
-const validateArrayInput = ajv.compile(tasksLaunchSchemaJson.definitions.arrayOptions);
-tasksLaunchSchemaJson.definitions.commandOptions.allOf![0] = (<any>tasksLaunchSchemaJson.definitions.options);
-const validateCommandInput = ajv.compile(tasksLaunchSchemaJson.definitions.commandOptions);
+inputSchema.then.properties.args = (<any>{ type: ["array", "object"] });
+const validateStatusBarParamInput = ajv.compile<any>(inputSchema);
+inputSchema.definitions.arrayOptions.anyOf[1].allOf![0] = (<any>inputSchema.definitions.options);
+const validateArrayInput = ajv.compile(inputSchema.definitions.arrayOptions);
+inputSchema.definitions.commandOptions.allOf![0] = (<any>inputSchema.definitions.options);
+const validateCommandInput = ajv.compile(inputSchema.definitions.commandOptions);
 
 export interface JsoncPaths {
 	versionPath: JSONPath
@@ -150,13 +150,14 @@ export class JsonFile implements Disposable {
 				} else if (validateCommandInput(input.args)) {
 					param = new CommandParam(input, paramPriority, inputNode.offset, i, this);
 				} else {
-					return;
+					continue;
 				}
 				this.params.push(param);
 
 				// open param added before
-				if (this.paramIdToEditOnCreate) {
+				if (this.paramIdToEditOnCreate === input.id) {
 					param.onEdit();
+					this.paramIdToEditOnCreate = '';
 				}
 			}
 		} catch (err) {
@@ -324,10 +325,10 @@ export class JsonFile implements Disposable {
 				tasksRoot = rootNode.tasks;
 			}
 
+			if (!rootNode.version && !this.uri.path.endsWith('launch.json')) {
+				fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, jsoncPaths.versionPath, "2.0.0", { formattingOptions: {} }));
+			}
 			if (addSampleTask) {
-				if (!rootNode.version) {
-					fileContent = jsonc.applyEdits(fileContent, jsonc.modify(fileContent, jsoncPaths.versionPath, "2.0.0", { formattingOptions: {} }));
-				}
 				if (!tasksRoot.tasks) {
 					tasksRoot.tasks = [];
 				}
