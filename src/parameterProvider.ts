@@ -32,8 +32,8 @@ export class ParameterProvider implements TreeDataProvider<JsonFile | Param> {
                 iconPath: Param.getIcon(element),
                 contextValue: 'Param',
                 command: {
-                    title: 'Edit',
-                    command: Strings.COMMAND_EDIT,
+                    title: 'Select',
+                    command: Strings.COMMAND_SELECT,
                     arguments: [element]
                 }
             };
@@ -43,7 +43,7 @@ export class ParameterProvider implements TreeDataProvider<JsonFile | Param> {
     getChildren(element?: JsonFile) {
         if (!element) {
             // filter non existing jsonFiles
-            return this.jsonFiles.filter(jsonFile => jsonFile.fileExists());
+            return this.jsonFiles.filter(jsonFile => jsonFile.hasParams());
         } else {
             return element.params;
         }

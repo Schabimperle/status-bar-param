@@ -76,6 +76,10 @@ export class JsonFile implements Disposable {
 		return this.lastRead !== 0;
 	}
 
+	hasParams() {
+		return this.params.length > 0;
+	}
+
 	getFileName() {
 		return path.basename(this.uri.fsPath);
 	}
@@ -103,7 +107,7 @@ export class JsonFile implements Disposable {
 			if (lastWrite === this.lastRead) {
 				return;
 			}
-			this.jsonFileChanged(this.lastRead === 0);
+			this.jsonFileChanged();
 			this.lastRead = lastWrite;
 		} catch (err) {
 			this.clear();
@@ -111,10 +115,11 @@ export class JsonFile implements Disposable {
 		}
 	}
 
-	private async jsonFileChanged(triggerTreeViewAddJson: boolean) {
+	private async jsonFileChanged() {
 		console.debug('jsonFileChanged', this.uri.toString());
 
 		this.clear();
+		let oldParamLength = 0;
 		try {
 			const fileContent = await workspace.fs.readFile(this.uri);
 			let rootNode = jsonc.parseTree(fileContent.toString());
@@ -124,6 +129,7 @@ export class JsonFile implements Disposable {
 			}
 			const inputs = jsonc.findNodeAtLocation(rootNode, ['inputs']);
 
+			oldParamLength = this.params.length;
 			this.params = [];
 			if (!inputs?.children) {
 				return;
@@ -163,7 +169,7 @@ export class JsonFile implements Disposable {
 		} catch (err) {
 			console.error("Couldn't read/parse json:", err);
 		}
-		if (triggerTreeViewAddJson) {
+		if (oldParamLength === 0 || this.params.length === 0 && oldParamLength !== this.params.length) {
 			ParameterProvider.onDidChangeTreeDataEmitter.fire();
 		} else {
 			ParameterProvider.onDidChangeTreeDataEmitter.fire(this);

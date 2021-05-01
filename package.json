@@ -2,7 +2,7 @@
 	"name": "status-bar-param",
 	"displayName": "%displayName%",
 	"description": "%description%",
-	"version": "1.4.0",
+	"version": "1.5.0",
 	"publisher": "mschababerle",
 	"icon": "images/icon.png",
 	"keywords": [
@@ -23,14 +23,29 @@
 		"Other"
 	],
 	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "statusBarParam",
+					"title": "%displayName%",
+					"icon": "images/icon.svg"
+				}
+			]
+		},
 		"views": {
-			"explorer": [
+			"statusBarParam": [
 				{
 					"id": "statusBarParam",
 					"name": "%displayName%"
 				}
 			]
 		},
+		"viewsWelcome": [
+			{
+				"view": "statusBarParam",
+				"contents": "No parameters found.\n[Add Parameter](command:statusBarParam.add)"
+			}
+		],
 		"configuration": {
 			"type": "object",
 			"title": "StatusBarParam",
@@ -53,7 +68,7 @@
 			{
 				"command": "statusBarParam.add",
 				"category": "Status Bar Parameter",
-				"title": "Add",
+				"title": "Add Parameter",
 				"icon": "$(add)"
 			},
 			{
@@ -87,11 +102,6 @@
 					"command": "statusBarParam.add",
 					"when": "view == statusBarParam",
 					"group": "navigation@2"
-				},
-				{
-					"command": "statusBarParam.edit",
-					"when": "view == statusBarParam",
-					"group": "navigation@1"
 				}
 			],
 			"view/item/context": [
@@ -101,7 +111,7 @@
 					"when": "viewItem == JsonFile"
 				},
 				{
-					"command": "statusBarParam.select",
+					"command": "statusBarParam.edit",
 					"group": "inline@1",
 					"when": "viewItem == Param"
 				},

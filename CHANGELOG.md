@@ -2,22 +2,27 @@
 
 All notable changes to the "status-bar-param" extension will be documented in this file.
 
+## [1.5.0]
+
+- Added hide options, globally and per parameter (showName/s, showSelection/s).
+- Moved tree view to its own view container.
+
 ## [1.4.0]
 
-- added retrieving values from shell commands
-- added option for multiple selection
-- added tree view (tab in file explorer)
-- added commands to...
-    - ... edit a parameter
-    - ... copy the retrieval string for a parameter
-    - ... delete a parameter
-    - ... select a parameter
-- added json schema validation for input sections 
-- minor improvements and bugfixes
-    - preselection of the last picked value in selection list
-    - made adding sample task optional
-    - added icons for array and command parameters
-    - updated extension overview
+- Added retrieving values from shell commands.
+- Added option for multiple selection.
+- Added tree view (tab in file explorer).
+- Added commands to....
+    - ... Edit a parameter.
+    - ... Copy the retrieval string for a parameter.
+    - ... Delete a parameter.
+    - ... Select a parameter.
+- Added json schema validation for input sections .
+- Minor improvements and bugfixes.
+    - Preselection of the last picked value in selection list.
+    - Made adding sample task optional.
+    - Added icons for array and command parameters.
+    - Updated extension overview.
 
 ## [1.3.1]
 
