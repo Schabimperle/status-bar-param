@@ -39,7 +39,13 @@
 					"scope": "resource",
 					"type": "boolean",
 					"default": false,
-					"description": "Show the name of the parameter in front of the selected value in the status bar."
+					"description": "Show the names of parameters in front of the selected value in the status bar."
+				},
+				"statusBarParam.showSelections": {
+					"scope": "resource",
+					"type": "boolean",
+					"default": true,
+					"description": "Show the selected value of the parameters in the status bar."
 				}
 			}
 		},

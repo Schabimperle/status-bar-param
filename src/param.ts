@@ -12,6 +12,8 @@ import { JsonFile } from './jsonFile';
  */
 export interface ParamOptions {
     canPickMany?: boolean;
+    showName?: boolean;
+    showSelection?: boolean;
 }
 interface ParamInput {
     id: string,
@@ -116,16 +118,25 @@ export abstract class Param {
     }
 
     setText(selection: string[]) {
-        let text;
-        if (selection.length === 0 || selection.length === 1 && selection[0] === '') {
-            this.statusBarItem.color = Param.COLOR_INACTIVE;
+        const showName = this.input.args.showName !== undefined ? this.input.args.showName : ext.getShowNames();
+        const showSelection = this.input.args.showSelection !== undefined ? this.input.args.showSelection : ext.getShowSelections();
+        const selectionEmpty = selection.length === 0 || (selection.length === 1 && selection[0] === '');
+        // determine text
+        let text = '';
+        if (showName || (selectionEmpty && showSelection)) {
             text = this.input.id;
-        } else if (ext.getShowNames()) {
-            this.statusBarItem.color = '';
-            text = `${this.input.id}: ${selection.join(' ')}`;
+        }
+        if (showSelection && !selectionEmpty) {
+            if (showName) {
+                text += ': ';
+            }
+            text += selection.join(' ');
+        }
+        // detemine color
+        if (selectionEmpty) {
+            this.statusBarItem.color = Param.COLOR_INACTIVE;
         } else {
             this.statusBarItem.color = '';
-            text = `${selection.join(' ')}`;
         }
         this.statusBarItem.text = text;
     }
