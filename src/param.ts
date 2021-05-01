@@ -96,7 +96,7 @@ export abstract class Param {
                 picked: oldSelection.includes(value)
             };
         });
-        const newSelection = await window.showQuickPick(items, { canPickMany: this.input.args.canPickMany });
+        const newSelection = await window.showQuickPick(items, { canPickMany: this.input.args.canPickMany, ignoreFocusOut: this.input.args.canPickMany });
         if (newSelection !== undefined) {
             this.storeSelectedValues(newSelection instanceof Array ? newSelection.map(value => value.label) : [newSelection.label]);
         }
