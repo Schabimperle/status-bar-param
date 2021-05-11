@@ -14,6 +14,7 @@ export interface ParamOptions {
     canPickMany?: boolean;
     showName?: boolean;
     showSelection?: boolean;
+    initialSelection?: string | string[];
 }
 interface ParamInput {
     id: string,
@@ -71,19 +72,32 @@ export abstract class Param {
     async update() {
         let selection = await this.loadSelectedValues();
         const values = await this.getValues();
-        selection = selection?.filter(s => values.includes(s));
-        if (!this.input.args.canPickMany && selection.length === 0) {
+        // Set to initial value if one is given and no value was selected for this param before
+        if (!selection) {
+            if (this.input.args.initialSelection) {
+                if (this.input.args.initialSelection instanceof Array) {
+                    selection = this.input.args.initialSelection;
+                } else {
+                    selection = [this.input.args.initialSelection];
+                }
+            } else {
+                selection = [];
+            }
+        }
+        // Delete selected values that are not selectable
+        selection = selection.filter(s => values.includes(s));
+
+        // Set default value if selection is empty and mulitple selection is not used. For multiple selection, leave emtpy.
+        if (selection.length === 0 && !this.input.args.canPickMany) {
             selection = [values[0]];
         }
-        if (selection === undefined) {
-            window.showWarningMessage(`Parameter '${this.input.id}' has no arguments!`);
-        }
+
         this.storeSelectedValues(selection);
     }
 
     async onSelect() {
         const values = await this.getValues();
-        const oldSelection = await this.loadSelectedValues();
+        const oldSelection = await this.loadSelectedValues() || [];
         // preselect single selection
         if (!this.input.args.canPickMany && oldSelection.length === 1) {
             const selectionIndex = values.findIndex(value => value === oldSelection[0]);
@@ -142,7 +156,11 @@ export abstract class Param {
     }
 
     onGet() {
-        return this.loadSelectedValues().join(' ');
+        let selection = this.loadSelectedValues();
+        if (!selection) {
+            selection = [];
+        }
+        return selection.join(' ');
     }
 
     loadSelectedValues() {
@@ -156,7 +174,7 @@ export abstract class Param {
                 values = [oldValues];
             }
         }
-        return values || [];
+        return values;
     }
 
     async onCopyCmd() {

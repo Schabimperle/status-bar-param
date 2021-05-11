@@ -17,6 +17,14 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Show the selected value of the parameter in the status bar."
+                },
+                "initialSelection": {
+                    "type": [
+                        "string",
+                        "array"
+                    ],
+                    "default": "",
+                    "description": "Set an initial selected value for the parameter. It must be one (or more in case of canPickMany=true) of the values to pick from. It can be a string or an array of strings."
                 }
             }
         },

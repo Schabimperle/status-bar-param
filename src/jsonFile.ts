@@ -122,49 +122,16 @@ export class JsonFile implements Disposable {
 		let oldParamLength = 0;
 		try {
 			const fileContent = await workspace.fs.readFile(this.uri);
-			let rootNode = jsonc.parseTree(fileContent.toString());
-			const tasks = jsonc.findNodeAtLocation(rootNode, ['tasks']);
-			if (tasks?.type === 'object') {
-				rootNode = tasks;
-			}
-			const inputs = jsonc.findNodeAtLocation(rootNode, ['inputs']);
 
 			oldParamLength = this.params.length;
 			this.params = [];
-			if (!inputs?.children) {
-				return;
-			}
-			for (let i = 0; i < inputs.children.length; i++) {
-				const inputNode = inputs.children[i];
-				// ignore inputs not intended for this extension
-				const input = jsonc.getNodeValue(inputNode);
-				// calculate priority depending on the priority of this json file for the params to show in the correct order
-				const paramPriority = this.priority - (this.params.length * JsonFile.PRIORITY_STEP);
-				// check if input is a statusBarParam
-				if (!validateStatusBarParamInput(input)) {
-					return;
-				}
 
-				if (input.args instanceof Array) {
-					input.args.values = input.args;
-				}
-
-				// create specific param and add it to the status bar
-				let param;
-				if (validateArrayInput(input.args)) {
-					param = new ArrayParam(input, paramPriority, inputNode.offset, i, this);
-				} else if (validateCommandInput(input.args)) {
-					param = new CommandParam(input, paramPriority, inputNode.offset, i, this);
-				} else {
-					continue;
-				}
-				this.params.push(param);
-
-				// open param added before
-				if (this.paramIdToEditOnCreate === input.id) {
-					param.onEdit();
-					this.paramIdToEditOnCreate = '';
-				}
+			const rootNode = jsonc.parseTree(fileContent.toString());
+			const jsoncPaths = this.getJsoncPaths();
+			this.parseInputs(jsonc.findNodeAtLocation(rootNode, jsoncPaths.inputsPath));
+			if (this.uri.path.endsWith('.code-workspace')) {
+				// TODO: clean up mess with jsoncPaths for launch section in .code-workspace files
+				this.parseInputs(jsonc.findNodeAtLocation(rootNode, ['launch', 'inputs']));
 			}
 		} catch (err) {
 			console.error("Couldn't read/parse json:", err);
@@ -173,6 +140,44 @@ export class JsonFile implements Disposable {
 			ParameterProvider.onDidChangeTreeDataEmitter.fire();
 		} else {
 			ParameterProvider.onDidChangeTreeDataEmitter.fire(this);
+		}
+	}
+
+	private parseInputs(inputs: jsonc.Node | undefined) {
+		if (!inputs?.children) {
+			return;
+		}
+		for (let i = 0; i < inputs.children.length; i++) {
+			const inputNode = inputs.children[i];
+			// ignore inputs not intended for this extension
+			const input = jsonc.getNodeValue(inputNode);
+			// calculate priority depending on the priority of this json file for the params to show in the correct order
+			const paramPriority = this.priority - (this.params.length * JsonFile.PRIORITY_STEP);
+			// check if input is a statusBarParam
+			if (!validateStatusBarParamInput(input)) {
+				return;
+			}
+
+			if (input.args instanceof Array) {
+				input.args.values = input.args;
+			}
+
+			// create specific param and add it to the status bar
+			let param;
+			if (validateArrayInput(input.args)) {
+				param = new ArrayParam(input, paramPriority, inputNode.offset, i, this);
+			} else if (validateCommandInput(input.args)) {
+				param = new CommandParam(input, paramPriority, inputNode.offset, i, this);
+			} else {
+				continue;
+			}
+			this.params.push(param);
+
+			// open param added before
+			if (this.paramIdToEditOnCreate === input.id) {
+				param.onEdit();
+				this.paramIdToEditOnCreate = '';
+			}
 		}
 	}
 

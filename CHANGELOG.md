@@ -2,6 +2,11 @@
 
 All notable changes to the "status-bar-param" extension will be documented in this file.
 
+## [1.6.0]
+
+- Added parsing the 'initialSelection' value from the argument section of parameters., which can be used to set an initial selection.
+- Fixed not parsing the inputs section of the 'launch' configuration of .code-workspace files.
+
 ## [1.5.0]
 
 - Added hide options, globally and per parameter (showName/s, showSelection/s).
