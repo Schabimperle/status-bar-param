@@ -94,14 +94,14 @@ function createParamCommand(commandString: string, cb: (param: Param) => any) {
 function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
 	console.debug('addWorkspaceFolder', workspaceFolder.name);
 	workspaceInputFiles.forEach(relativePath => {
-		const jsonFile = JsonFile.FromInsideWorkspace(priority--, workspaceFolder, relativePath);
+		const jsonFile = JsonFile.createFromPathInsideWorkspace(priority--, workspaceFolder, relativePath);
 		jsonFiles.push(jsonFile);
 	});
 }
 
 function addJsonFile(path: Uri) {
 	console.debug('addJsonFile', path.toString());
-	const jsonFile = JsonFile.FromOutsideWorkspace(priority--, path);
+	const jsonFile = JsonFile.createFromPathOutsideWorkspace(priority--, path);
 	jsonFiles.push(jsonFile);
 }
 

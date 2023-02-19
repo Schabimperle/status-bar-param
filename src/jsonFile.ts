@@ -9,7 +9,7 @@ import { ParameterProvider } from './parameterProvider';
 import Ajv from 'ajv';
 
 // create schema validator functions for status bar parameters
-import inputSchema from '../schemas/input_schema.json';
+import inputSchema from './schemas/input_schema.json';
 const ajv = new Ajv();
 inputSchema.then.properties.args = (<any>{ type: ["array", "object"] });
 const validateStatusBarParamInput = ajv.compile<any>(inputSchema);
@@ -25,14 +25,14 @@ export interface JsoncPaths {
 }
 
 export class JsonFile implements Disposable {
-	private static readonly PRIORITY_STEP = 0.001;
+	private static readonly priorityStep = 0.001;
 	private lastRead: number = 0;
 	private disposables: Disposable[] = [];
 	private paramIdToEditOnCreate: string = '';
 	params: Param[] = [];
 
-	static FromInsideWorkspace(priority: number, workspaceFolder: WorkspaceFolder, relativePath: string): JsonFile {
-		console.debug('FromInsideWorkspace:', workspaceFolder.name, relativePath);
+	static createFromPathInsideWorkspace(priority: number, workspaceFolder: WorkspaceFolder, relativePath: string): JsonFile {
+		console.debug('createFromPathInsideWorkspace:', workspaceFolder.name, relativePath);
 
 		// workaround for bug: https://github.com/microsoft/vscode/issues/10633
 		const uri = workspaceFolder.uri.with({ path: `${workspaceFolder.uri.path}/${relativePath}` });
@@ -51,8 +51,8 @@ export class JsonFile implements Disposable {
 		return jsonFile;
 	}
 
-	static FromOutsideWorkspace(priority: number, path: Uri): JsonFile {
-		console.debug('FromOutsideWorkspace:', path.toString());
+	static createFromPathOutsideWorkspace(priority: number, path: Uri): JsonFile {
+		console.debug('createFromPathOutsideWorkspace:', path.toString());
 
 		// wait for changes of the given file
 		const jsonFile = new JsonFile(priority, path);
@@ -152,7 +152,7 @@ export class JsonFile implements Disposable {
 			// ignore inputs not intended for this extension
 			const input = jsonc.getNodeValue(inputNode);
 			// calculate priority depending on the priority of this json file for the params to show in the correct order
-			const paramPriority = this.priority - (this.params.length * JsonFile.PRIORITY_STEP);
+			const paramPriority = this.priority - (this.params.length * JsonFile.priorityStep);
 			// check if input is a statusBarParam
 			if (!validateStatusBarParamInput(input)) {
 				return;
