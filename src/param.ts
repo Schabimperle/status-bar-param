@@ -22,7 +22,7 @@ interface ParamInput {
     args: ParamOptions
 }
 export abstract class Param {
-    protected static readonly COLOR_INACTIVE = new ThemeColor('input.foreground');
+    protected static readonly colorInactive = new ThemeColor('input.foreground');
     protected readonly statusBarItem: StatusBarItem;
     protected readonly disposables: Disposable[] = [];
 
@@ -148,7 +148,7 @@ export abstract class Param {
         }
         // detemine color
         if (selectionEmpty) {
-            this.statusBarItem.color = Param.COLOR_INACTIVE;
+            this.statusBarItem.color = Param.colorInactive;
         } else {
             this.statusBarItem.color = '';
         }
