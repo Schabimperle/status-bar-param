@@ -262,7 +262,7 @@ export class CommandParam extends Param {
     async getValues() {
         let execPath = path.dirname(this.jsonFile.uri.fsPath).replace(/.vscode$/, '');
         if (this.input.args.cwd) {
-            execPath = path.resolve(execPath, this.input.args.cwd);;
+            execPath = path.resolve(execPath, this.input.args.cwd);
         }
         try {
             await workspace.fs.stat(Uri.file(execPath));
@@ -285,7 +285,7 @@ export class CommandParam extends Param {
             exec(cmd, { cwd }, (error, stdout, stderr) => {
                 if (error) {
                     console.error(error + ":", stderr);
-                    window.showErrorMessage(`Executing ${this.input.args.shellCmd} failed: ${stderr}`);
+                    window.showErrorMessage(`Executing "${this.input.args.shellCmd}" at path ${cwd} with shell ${process.env.shell || process.env.ComSpec} failed: ${stderr}`);
                     return;
                 }
                 resolve(stdout);

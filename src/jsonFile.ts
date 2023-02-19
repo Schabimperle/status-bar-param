@@ -1,12 +1,12 @@
 import { workspace, Uri, WorkspaceFolder, RelativePattern, Disposable, QuickPickItem, window, Range } from 'vscode';
 import * as jsonc from 'jsonc-parser';
 import { JSONPath } from 'jsonc-parser';
-import * as fs from 'fs';
 import { ArrayParam, CommandParam, Param, ArrayOptions, CommandOptions } from './param';
 import { Strings } from './strings';
 import * as path from 'path';
 import { ParameterProvider } from './parameterProvider';
 import Ajv from 'ajv';
+import * as fs from 'fs';
 
 // create schema validator functions for status bar parameters
 import inputSchema from './schemas/input_schema.json';
@@ -26,9 +26,10 @@ export interface JsoncPaths {
 
 export class JsonFile implements Disposable {
 	private static readonly priorityStep = 0.001;
-	private lastRead: number = 0;
 	private disposables: Disposable[] = [];
 	private paramIdToEditOnCreate: string = '';
+	private busy: boolean = false;
+	private changeWhileBusy: boolean = false;
 	params: Param[] = [];
 
 	static createFromPathInsideWorkspace(priority: number, workspaceFolder: WorkspaceFolder, relativePath: string): JsonFile {
@@ -41,13 +42,13 @@ export class JsonFile implements Disposable {
 		const jsonFile = new JsonFile(priority, uri, workspaceFolder);
 		const pattern = new RelativePattern(workspaceFolder, relativePath);
 		const watcher = workspace.createFileSystemWatcher(pattern);
-		watcher.onDidChange(() => jsonFile.multipleChangeTriggersWorkaound());
-		watcher.onDidCreate(() => jsonFile.multipleChangeTriggersWorkaound());
-		watcher.onDidDelete(() => jsonFile.clear());
+		watcher.onDidChange(() => jsonFile.fileChangeDebounce());
+		watcher.onDidCreate(() => jsonFile.fileChangeDebounce());
+		watcher.onDidDelete(() => jsonFile.dispose());
 		jsonFile.disposables.push(new Disposable(watcher.dispose));
 
 		// init status bar items
-		jsonFile.multipleChangeTriggersWorkaound();
+		jsonFile.fileChangeDebounce();
 		return jsonFile;
 	}
 
@@ -57,23 +58,19 @@ export class JsonFile implements Disposable {
 		// wait for changes of the given file
 		const jsonFile = new JsonFile(priority, path);
 		const watcher = fs.watch(path.fsPath);
-		watcher.on('change', () => jsonFile.multipleChangeTriggersWorkaound());
-		watcher.on('close', () => jsonFile.clear());
+		watcher.on('change', () => jsonFile.fileChangeDebounce());
+		watcher.on('close', () => jsonFile.dispose());
 		jsonFile.disposables.push(new Disposable(() => watcher.close()));
 
 		// init status bar items
-		jsonFile.multipleChangeTriggersWorkaound();
+		jsonFile.fileChangeDebounce();
 		return jsonFile;
 	}
 
-	constructor(private priority: number, public uri: Uri, public workspaceFolder?: WorkspaceFolder) {
+	private constructor(private priority: number, public uri: Uri, public workspaceFolder?: WorkspaceFolder) {
 		this.priority = priority;
 		this.uri = uri;
 		this.workspaceFolder = workspaceFolder;
-	}
-
-	fileExists() {
-		return this.lastRead !== 0;
 	}
 
 	hasParams() {
@@ -81,7 +78,11 @@ export class JsonFile implements Disposable {
 	}
 
 	getFileName() {
-		return path.basename(this.uri.fsPath);
+		return path.basename(this.uri.path);
+	}
+
+	getDescription() {
+		return this.workspaceFolder?.name || this.uri?.fsPath;
 	}
 
 	getJsoncPaths() {
@@ -98,27 +99,26 @@ export class JsonFile implements Disposable {
 		return res;
 	}
 
-	// workaround for didChange event fired twice for one change
-	private async multipleChangeTriggersWorkaound() {
-		console.debug('multipleChangeTriggersWorkaound');
-		try {
-			const stat = await workspace.fs.stat(this.uri);
-			const lastWrite = stat.mtime;
-			if (lastWrite === this.lastRead) {
-				return;
-			}
-			this.jsonFileChanged();
-			this.lastRead = lastWrite;
-		} catch (err) {
-			this.clear();
+	// prevent race condition by parallel change events
+	private fileChangeDebounce() {
+		if (this.busy === true) {
+			this.changeWhileBusy = true;
 			return;
+		}
+
+		this.busy = true;
+		this.onFileChange();
+		this.busy = false;
+
+		if (this.changeWhileBusy === true) {
+			this.changeWhileBusy = false;
+			this.fileChangeDebounce();
 		}
 	}
 
-	private async jsonFileChanged() {
-		console.debug('jsonFileChanged', this.uri.toString());
-
-		this.clear();
+	private async onFileChange() {
+		console.debug('onFileChange', this.uri.fsPath);
+		this.disposeParams();
 		let oldParamLength = 0;
 		try {
 			const fileContent = await workspace.fs.readFile(this.uri);
@@ -134,7 +134,7 @@ export class JsonFile implements Disposable {
 				this.parseInputs(jsonc.findNodeAtLocation(rootNode, ['launch', 'inputs']));
 			}
 		} catch (err) {
-			console.error("Couldn't read/parse json:", err);
+			console.log("File doesn't exist (yet)", this.uri.fsPath);
 		}
 		if (oldParamLength === 0 || this.params.length === 0 && oldParamLength !== this.params.length) {
 			ParameterProvider.onDidChangeTreeDataEmitter.fire();
@@ -186,21 +186,19 @@ export class JsonFile implements Disposable {
 		this.params.forEach(param => param.update());
 	}
 
-	clear() {
-		console.debug('clear');
+	disposeParams() {
+		console.debug('disposeParams');
 		while (this.params.length > 0) {
 			const param = this.params.pop();
 			if (param) {
 				param.dispose();
 			}
 		}
-		this.lastRead = 0;
 		ParameterProvider.onDidChangeTreeDataEmitter.fire();
 	}
 
 	dispose() {
 		console.debug('dispose');
-		this.clear();
 		this.disposables.forEach(disposable => disposable.dispose());
 	}
 

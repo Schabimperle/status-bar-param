@@ -54,17 +54,20 @@ export function activate(context: ExtensionContext) {
 
 		// listen for changes of workspace folders
 		workspace.onDidChangeWorkspaceFolders((e) => {
-			e.added.forEach(workspaceFolder => addWorkspaceFolder(workspaceFolder));
+			e.added.forEach(addWorkspaceFolder);
 			e.removed.forEach(workspaceFolder => removeWorkspaceFolder(workspaceFolder));
 			ParameterProvider.onDidChangeTreeDataEmitter.fire();
 		})
 	);
+	// listen for changes of the global user tasks.json
+	addJsonFile(Uri.joinPath(context.globalStorageUri, '../../tasks.json'));
 	// listen for changes of the .code-workspace file
 	if (workspace.workspaceFile && workspace.workspaceFile.scheme !== 'untitled') {
 		addJsonFile(workspace.workspaceFile);
 	}
+
 	// init workspace
-	workspace.workspaceFolders?.forEach((workspaceFolder) => addWorkspaceFolder(workspaceFolder));
+	workspace.workspaceFolders?.forEach(addWorkspaceFolder);
 
 	// register status bar param tab in file explorer
 	window.registerTreeDataProvider(Strings.EXTENSION_ID, new ParameterProvider(jsonFiles));
@@ -100,7 +103,7 @@ function addWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
 }
 
 function addJsonFile(path: Uri) {
-	console.debug('addJsonFile', path.toString());
+	console.debug('addJsonFile', path.fsPath);
 	const jsonFile = JsonFile.createFromPathOutsideWorkspace(priority--, path);
 	jsonFiles.push(jsonFile);
 }
@@ -134,30 +137,28 @@ export function deactivate() {
 
 async function addPramToJson(jsonFile?: JsonFile) {
 	console.debug('addPramToJson');
-	// check if there is a workspace where a tasks.json can be written
 	if (!jsonFile) {
-		if (jsonFiles.length === 0) {
-			window.showWarningMessage('You need to open a folder or workspace first!');
-		} else if (jsonFiles.length === 1) {
-			jsonFile = jsonFiles[0];
-		} else {
-			const items: QuickPickItem[] = jsonFiles.map(jsonFile => {
-				return {
-					label: jsonFile.getFileName(),
-					description: jsonFile.workspaceFolder?.name,
-					jsonFile
-				};
-			});
-			const res: any = await window.showQuickPick(items, {
-				placeHolder: "Select the file to store the input parameter in.",
-			});
-			if (res) {
-				jsonFile = res.jsonFile;
-			}
+		const items: QuickPickItem[] = jsonFiles.map(jsonFile => {
+			return {
+				label: jsonFile.getFileName(),
+				description: jsonFile.getDescription(),
+				jsonFile
+			};
+		});
+		let placeHolder = "Select the file where the parameter should be saved.";
+		if (jsonFiles.length <= 1) {
+			placeHolder += " Open a workspace or folder to extend this list.";
 		}
-		if (!jsonFile) {
-			return;
+		const res: any = await window.showQuickPick(items, {
+			placeHolder,
+		});
+		if (res) {
+			jsonFile = res.jsonFile;
 		}
 	}
+	if (!jsonFile) {
+		return;
+	}
+
 	jsonFile.createParam();
 }
