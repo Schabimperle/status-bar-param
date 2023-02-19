@@ -14,7 +14,7 @@ export class ParameterProvider implements TreeDataProvider<JsonFile | Param> {
             return {
                 resourceUri: element.uri,
                 iconPath: ThemeIcon.File,
-                description: element.workspaceFolder?.name,
+                description: element.getDescription(),
                 collapsibleState: TreeItemCollapsibleState.Expanded,
                 contextValue: 'JsonFile',
                 command: {
