@@ -63,6 +63,9 @@ export function activate(context: ExtensionContext) {
 	if (workspace.workspaceFile && workspace.workspaceFile.scheme !== 'untitled') {
 		addJsonFile(workspace.workspaceFile);
 	}
+	// listen for changes of the global user tasks.json
+	addJsonFile(Uri.joinPath(context.globalStorageUri, '../../tasks.json'));
+
 	// init workspace
 	workspace.workspaceFolders?.forEach((workspaceFolder) => addWorkspaceFolder(workspaceFolder));
 
@@ -134,30 +137,28 @@ export function deactivate() {
 
 async function addPramToJson(jsonFile?: JsonFile) {
 	console.debug('addPramToJson');
-	// check if there is a workspace where a tasks.json can be written
 	if (!jsonFile) {
-		if (jsonFiles.length === 0) {
-			window.showWarningMessage('You need to open a folder or workspace first!');
-		} else if (jsonFiles.length === 1) {
-			jsonFile = jsonFiles[0];
-		} else {
-			const items: QuickPickItem[] = jsonFiles.map(jsonFile => {
-				return {
-					label: jsonFile.getFileName(),
-					description: jsonFile.workspaceFolder?.name,
-					jsonFile
-				};
-			});
-			const res: any = await window.showQuickPick(items, {
-				placeHolder: "Select the file to store the input parameter in.",
-			});
-			if (res) {
-				jsonFile = res.jsonFile;
-			}
+		const items: QuickPickItem[] = jsonFiles.map(jsonFile => {
+			return {
+				label: jsonFile.getFileName(),
+				description: jsonFile.workspaceFolder?.name || jsonFile.uri?.fsPath,
+				jsonFile
+			};
+		});
+		let placeholder = "Select the file where the parameter should be saved.";
+		if (jsonFiles.length <= 1) {
+			placeholder += " Open a workspace or folder to extend this list.";
 		}
-		if (!jsonFile) {
-			return;
+		const res: any = await window.showQuickPick(items, {
+			placeHolder: placeholder,
+		});
+		if (res) {
+			jsonFile = res.jsonFile;
 		}
 	}
+	if (!jsonFile) {
+		return;
+	}
+
 	jsonFile.createParam();
 }

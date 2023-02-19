@@ -51,14 +51,22 @@ export class JsonFile implements Disposable {
 		return jsonFile;
 	}
 
-	static createFromPathOutsideWorkspace(priority: number, path: Uri): JsonFile {
-		console.debug('createFromPathOutsideWorkspace:', path.toString());
+	static createFromPathOutsideWorkspace(priority: number, uri: Uri): JsonFile {
+		console.debug('createFromPathOutsideWorkspace:', uri.toString());
 
 		// wait for changes of the given file
-		const jsonFile = new JsonFile(priority, path);
-		const watcher = fs.watch(path.fsPath);
-		watcher.on('change', () => jsonFile.multipleChangeTriggersWorkaound());
-		watcher.on('close', () => jsonFile.clear());
+		const jsonFile = new JsonFile(priority, uri);
+		const parentFolder = Uri.joinPath(uri, "..");
+		const watcher = fs.watch(parentFolder.fsPath, (event, filename) => {
+			if (!uri.path.endsWith(filename)) {
+				return;
+			}
+			if (event === "change") {
+				jsonFile.multipleChangeTriggersWorkaound();
+			} else if (event === "rename") {
+				jsonFile.clear();
+			}
+		});
 		jsonFile.disposables.push(new Disposable(() => watcher.close()));
 
 		// init status bar items
@@ -110,6 +118,7 @@ export class JsonFile implements Disposable {
 			this.jsonFileChanged();
 			this.lastRead = lastWrite;
 		} catch (err) {
+			console.debug(this.uri.path, 'not readable.');
 			this.clear();
 			return;
 		}
