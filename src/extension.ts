@@ -43,6 +43,8 @@ export function activate(context: ExtensionContext) {
 
 		// add command for creation of a parameter
 		commands.registerCommand(Strings.COMMAND_ADD, addPramToJson),
+		// add command for creation of a parameter
+		commands.registerCommand(Strings.COMMAND_RESET_SELECTIONS, clearSelections),
 		// add command for selection of a value of a parameter
 		createParamCommand(Strings.COMMAND_SELECT, (param) => param.onSelect()),
 		// add command for editing of a parameter
@@ -108,12 +110,12 @@ function addJsonFile(path: Uri) {
 	jsonFiles.push(jsonFile);
 }
 
-function configurationChanged() {
+function configurationChanged(forcedReload: boolean = false) {
 	console.debug('configurationChanged');
 	const currShowNames = workspace.getConfiguration(Strings.EXTENSION_ID).get<boolean>('showNames', false);
 	const currShowSelection = workspace.getConfiguration(Strings.EXTENSION_ID).get<boolean>('showSelections', true);
 
-	if (showNames !== currShowNames || showSelections !== currShowSelection) {
+	if (forcedReload === true || showNames !== currShowNames || showSelections !== currShowSelection) {
 		showNames = currShowNames;
 		showSelections = currShowSelection;
 		jsonFiles.forEach(jsonFile => jsonFile.update());
@@ -162,3 +164,11 @@ async function addPramToJson(jsonFile?: JsonFile) {
 
 	jsonFile.createParam();
 }
+
+function clearSelections() {
+	extensionContext.workspaceState.keys().forEach((element) => {
+		extensionContext.workspaceState.update(element, undefined);
+	});
+	const forcedReload = true;
+	configurationChanged(forcedReload);
+} 

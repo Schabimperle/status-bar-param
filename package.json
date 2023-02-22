@@ -72,6 +72,12 @@
         "icon": "$(add)"
       },
       {
+        "command": "statusBarParam.resetSelections",
+        "category": "Status Bar Parameter",
+        "title": "Reset Selections",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "statusBarParam.select",
         "category": "Status Bar Parameter",
         "title": "Change Selection",
