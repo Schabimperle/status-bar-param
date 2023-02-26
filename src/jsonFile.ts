@@ -110,15 +110,15 @@ export class JsonFile implements Disposable {
 		return res;
 	}
 
-	// prevent race condition by parallel change events
-	private fileChangeDebounce() {
+	// prevent race condition by change event while in onFileChange
+	private async fileChangeDebounce() {
 		if (this.busy === true) {
 			this.changeWhileBusy = true;
 			return;
 		}
 
 		this.busy = true;
-		this.onFileChange();
+		await this.onFileChange();
 		this.busy = false;
 
 		if (this.changeWhileBusy === true) {
