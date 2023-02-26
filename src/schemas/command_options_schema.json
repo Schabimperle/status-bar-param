@@ -1,0 +1,28 @@
+{
+    "$id": "command_options_schema.json",
+    "allOf": [
+        {
+            "$ref": "options_schema.json"
+        },
+        {
+            "type": "object",
+            "properties": {
+                "shellCmd": {
+                    "type": "string",
+                    "description": "A shell command that outputs parameter values to select from."
+                },
+                "cwd": {
+                    "type": "string",
+                    "description": "The working directory to execute the shell command from. Defaults to the workspace root."
+                },
+                "separator": {
+                    "type": "string",
+                    "description": "A string to separate the command output to selectable values. Defaults to '\\n'"
+                }
+            },
+            "required": [
+                "shellCmd"
+            ]
+        }
+    ]
+}

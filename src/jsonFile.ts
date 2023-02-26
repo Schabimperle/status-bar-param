@@ -9,14 +9,25 @@ import Ajv from 'ajv';
 import * as fs from 'fs';
 
 // create schema validator functions for status bar parameters
+import optionsSchema from './schemas/options_schema.json';
+import arrayOptionsSchema from './schemas/array_options_schema.json';
+import commandOptionsSchema from './schemas/command_options_schema.json';
 import inputSchema from './schemas/input_schema.json';
+
+// compile schema validators for ArrayInput/CommandInput
 const ajv = new Ajv();
+ajv.addSchema(optionsSchema)
+	.addSchema(arrayOptionsSchema)
+	.addSchema(commandOptionsSchema);
+// create schema validator to identify array options
+const validateArrayInput = ajv.getSchema<any>("array_options_schema.json");
+// create schema validator to identify command options
+const validateCommandInput = ajv.getSchema<any>("command_options_schema.json");
+
+// manipulate input args types to simplify validateStatusBarParamInput function
 inputSchema.then.properties.args = (<any>{ type: ["array", "object"] });
+// create schema validator to identify input options meant for this extension
 const validateStatusBarParamInput = ajv.compile<any>(inputSchema);
-inputSchema.definitions.arrayOptions.anyOf[1].allOf![0] = (<any>inputSchema.definitions.options);
-const validateArrayInput = ajv.compile(inputSchema.definitions.arrayOptions);
-inputSchema.definitions.commandOptions.allOf![0] = (<any>inputSchema.definitions.options);
-const validateCommandInput = ajv.compile(inputSchema.definitions.commandOptions);
 
 export interface JsoncPaths {
 	versionPath: JSONPath
@@ -154,8 +165,8 @@ export class JsonFile implements Disposable {
 			// calculate priority depending on the priority of this json file for the params to show in the correct order
 			const paramPriority = this.priority - (this.params.length * JsonFile.priorityStep);
 			// check if input is a statusBarParam
-			if (!validateStatusBarParamInput(input)) {
-				return;
+			if (!validateStatusBarParamInput || !validateStatusBarParamInput(input)) {
+				continue;
 			}
 
 			if (input.args instanceof Array) {
@@ -164,9 +175,9 @@ export class JsonFile implements Disposable {
 
 			// create specific param and add it to the status bar
 			let param;
-			if (validateArrayInput(input.args)) {
+			if (validateArrayInput && validateArrayInput(input.args)) {
 				param = new ArrayParam(input, paramPriority, inputNode.offset, i, this);
-			} else if (validateCommandInput(input.args)) {
+			} else if (validateCommandInput && validateCommandInput(input.args)) {
 				param = new CommandParam(input, paramPriority, inputNode.offset, i, this);
 			} else {
 				continue;

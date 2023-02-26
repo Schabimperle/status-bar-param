@@ -1,0 +1,33 @@
+{
+    "$id": "options_schema.json",
+    "type": "object",
+    "properties": {
+        "canPickMany": {
+            "type": "boolean",
+            "default": false,
+            "description": "Add checkboxes to enable selection of multiple values."
+        },
+        "showName": {
+            "type": "boolean",
+            "default": false,
+            "description": "Show the names of the parameter in front of the selected value in the status bar."
+        },
+        "showSelection": {
+            "type": "boolean",
+            "default": true,
+            "description": "Show the selected value of the parameter in the status bar."
+        },
+        "initialSelection": {
+            "anyOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "array"
+                }
+            ],
+            "default": "",
+            "description": "Set an initial selected value for the parameter. It must be one (or more in case of canPickMany=true) of the values to pick from. It can be a string or an array of strings."
+        }
+    }
+}

@@ -1,0 +1,34 @@
+{
+    "$id": "array_options_schema.json",
+    "if": {
+        "type": "array"
+    },
+    "then": {
+        "type": "array",
+        "items": {
+            "type": "string"
+        }
+    },
+    "else": {
+        "allOf": [
+            {
+                "$ref": "options_schema.json"
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "values": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "A list of parameter values to select from."
+                    }
+                },
+                "required": [
+                    "values"
+                ]
+            }
+        ]
+    }
+}
