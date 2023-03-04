@@ -8,6 +8,7 @@ import { ParameterProvider } from './parameterProvider';
 import { ArrayOptions, CommandOptions, Options, validateArrayOptionsInput, validateCommandOptionsInput, validateStatusBarParamInput, validateStringArrayInput } from './schemas';
 import { Strings } from './strings';
 import * as fs from 'fs';
+import { EOL } from 'os';
 
 export interface JsoncPaths {
 	versionPath: JSONPath
@@ -260,9 +261,9 @@ export class JsonFile implements Disposable {
 				}
 				const options: CommandOptions = { shellCmd };
 				const separator = await window.showInputBox({
-					prompt: `Optional: Enter a string to separate the command output to selectable values. Defaults to '\\n'`,
+					prompt: `Optional: Enter a string to separate the command output to selectable values. Defaults to OS specific line seperator.`,
 					ignoreFocusOut: true,
-					placeHolder: '\\n'
+					placeHolder: EOL.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
 				});
 				if (separator) {
 					options.separator = separator;

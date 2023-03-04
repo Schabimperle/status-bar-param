@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import * as path from 'path';
 import { ThemeIcon, Uri, window, workspace } from 'vscode';
 import { CommandOptions } from './schemas';
+import { EOL } from 'os';
 
 /**
  * A delegate interface for handling parameter values.
@@ -59,7 +60,7 @@ export class CommandValuesDelegate implements ValuesDelegate {
         try {
             await workspace.fs.stat(Uri.file(this.cwd));
             const stdout = await this.execCmd(this.opts.shellCmd, this.cwd);
-            const values = stdout.split(this.opts.separator || '\n');
+            const values = stdout.split(this.opts.separator || EOL);
             if (values && values.length > 0 && values[values.length - 1] === '') {
                 values.pop();
             }
