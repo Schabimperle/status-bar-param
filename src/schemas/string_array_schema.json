@@ -1,0 +1,7 @@
+{
+    "$id": "string_array_schema.json",
+    "type": "array",
+    "items": {
+        "type": "string"
+    }
+}

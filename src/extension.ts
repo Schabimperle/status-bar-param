@@ -80,7 +80,7 @@ function createParamCommand(commandString: string, cb: (param: Param) => any) {
 		if (!param) {
 			const items = jsonFiles.map(jsonFile => jsonFile.params).reduce((a, b) => a.concat(b)).map(param => {
 				return {
-					label: `$(${Param.getIcon(param).id}) ${param.input.id}`,
+					label: `$(${param.getIcon().id}) ${param.id}`,
 					description: param.onGet(),
 					param
 				};

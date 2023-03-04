@@ -1,33 +1,13 @@
-import { workspace, Uri, WorkspaceFolder, RelativePattern, Disposable, QuickPickItem, window, Range } from 'vscode';
+import { workspace, Uri, WorkspaceFolder, Disposable, QuickPickItem, window, RelativePattern } from 'vscode';
 import * as jsonc from 'jsonc-parser';
 import { JSONPath } from 'jsonc-parser';
-import { ArrayParam, CommandParam, Param, ArrayOptions, CommandOptions } from './param';
-import { Strings } from './strings';
+import { Param } from './param';
+import { ArrayValuesDelegate, CommandValuesDelegate, ValuesDelegate } from './valuesDelegate';
 import * as path from 'path';
 import { ParameterProvider } from './parameterProvider';
-import Ajv from 'ajv';
+import { ArrayOptions, CommandOptions, Options, validateArrayOptionsInput, validateCommandOptionsInput, validateStatusBarParamInput, validateStringArrayInput } from './schemas';
+import { Strings } from './strings';
 import * as fs from 'fs';
-
-// create schema validator functions for status bar parameters
-import optionsSchema from './schemas/options_schema.json';
-import arrayOptionsSchema from './schemas/array_options_schema.json';
-import commandOptionsSchema from './schemas/command_options_schema.json';
-import inputSchema from './schemas/input_schema.json';
-
-// compile schema validators for ArrayInput/CommandInput
-const ajv = new Ajv();
-ajv.addSchema(optionsSchema)
-	.addSchema(arrayOptionsSchema)
-	.addSchema(commandOptionsSchema);
-// create schema validator to identify array options
-const validateArrayInput = ajv.getSchema<any>("array_options_schema.json");
-// create schema validator to identify command options
-const validateCommandInput = ajv.getSchema<any>("command_options_schema.json");
-
-// manipulate input args types to simplify validateStatusBarParamInput function
-inputSchema.then.properties.args = (<any>{ type: ["array", "object"] });
-// create schema validator to identify input options meant for this extension
-const validateStatusBarParamInput = ajv.compile<any>(inputSchema);
 
 export interface JsoncPaths {
 	versionPath: JSONPath
@@ -36,7 +16,7 @@ export interface JsoncPaths {
 }
 
 export class JsonFile implements Disposable {
-	private static readonly priorityStep = 0.001;
+	private static readonly PRIORITY_STEP = 0.001;
 	private disposables: Disposable[] = [];
 	private paramIdToEditOnCreate: string = '';
 	private busy: boolean = false;
@@ -163,25 +143,30 @@ export class JsonFile implements Disposable {
 			// ignore inputs not intended for this extension
 			const input = jsonc.getNodeValue(inputNode);
 			// calculate priority depending on the priority of this json file for the params to show in the correct order
-			const paramPriority = this.priority - (this.params.length * JsonFile.priorityStep);
+			const paramPriority = this.priority - (this.params.length * JsonFile.PRIORITY_STEP);
 			// check if input is a statusBarParam
-			if (!validateStatusBarParamInput || !validateStatusBarParamInput(input)) {
+			if (!validateStatusBarParamInput(input)) {
 				continue;
-			}
-
-			if (input.args instanceof Array) {
-				input.args.values = input.args;
 			}
 
 			// create specific param and add it to the status bar
-			let param;
-			if (validateArrayInput && validateArrayInput(input.args)) {
-				param = new ArrayParam(input, paramPriority, inputNode.offset, i, this);
-			} else if (validateCommandInput && validateCommandInput(input.args)) {
-				param = new CommandParam(input, paramPriority, inputNode.offset, i, this);
+			let valuesDelegate: ValuesDelegate;
+			let options: Options;
+			if (validateStringArrayInput(input.args)) {
+				valuesDelegate = new ArrayValuesDelegate(input.args);
+				options = new Options();
+			} else if (validateArrayOptionsInput(input.args)) {
+				valuesDelegate = new ArrayValuesDelegate(input.args.values);
+				options = input.args;
+			} else if (validateCommandOptionsInput(input.args)) {
+				// determine the default path to execute the command from
+				let defaultCwd = path.dirname(this.uri.fsPath).replace(/.vscode$/, '');
+				valuesDelegate = new CommandValuesDelegate(input.args, defaultCwd);
+				options = input.args;
 			} else {
 				continue;
 			}
+			let param = new Param(input.id, input.command, options, paramPriority, inputNode.offset, i, this, valuesDelegate);
 			this.params.push(param);
 
 			// open param added before
@@ -215,8 +200,8 @@ export class JsonFile implements Disposable {
 
 	async createParam() {
 		// select param type to add
-		const arrayLabel = `\$(${ArrayParam.icon.id}) Array`;
-		const commandLabel = `\$(${CommandParam.icon.id}) Command`;
+		const arrayLabel = `\$(${ArrayValuesDelegate.ICON.id}) Array`;
+		const commandLabel = `\$(${CommandValuesDelegate.ICON.id}) Command`;
 		const items: QuickPickItem[] = [
 			{
 				label: arrayLabel,
